@@ -61,6 +61,8 @@ export class MapView {
   invalidate() { this.dirty = true; }
   touch() { this.fogDirty = true; this.dirty = true; }
   destroy() { this.dead = true; }
+  /** A city whose name (or castle) is under this point: { id, x, y, kind } (names win over castles). */
+  cityHitAt(px, py) { const inR = (r) => px >= r[0] && px <= r[0] + r[2] && py >= r[1] && py <= r[1] + r[3]; const hs = this.cityHits ?? []; return hs.find((q) => q.kind === 'label' && inR(q.r)) ?? hs.find((q) => q.kind === 'castle' && inR(q.r)) ?? null; }
   pinAt(px, py) { let best = null, bd = Infinity; for (const s of this.stackPos ?? []) { if (s.px == null) continue; const d = Math.hypot(px - s.px, py - s.py); if (d <= s.D / 2 + 3 && d < bd) { bd = d; best = s; } } return best ? { x: best.x, y: best.y } : null; }      // the nearest medal wins where big medals overlap
   get z() { return this.cam.z; }
   clamp() {
@@ -189,7 +191,7 @@ export class MapView {
       }
     }
     // cities
-    const cityLabels = [];
+    const cityLabels = []; this.cityHits = [];      // where each castle and city name is on screen, so a tap on either finds the city
     for (const c of g.cities.values()) {
       if (c.x < tx0 || c.x > tx1 || c.y < ty0 || c.y > ty1) continue;
       let owner = c.owner, razed = c.razed, live = true;
@@ -197,7 +199,8 @@ export class MapView {
       const ov = this.cityOverride?.get(c.id); if (ov) { owner = ov.owner; razed = ov.razed; }     // enemy-turn playback: the old colours until the city is taken
       const s = S(c.x, c.y); const realm = owner ? g.realms.get(owner) : null;
       const im = razed ? this.a.site.razed_castle : this.castleImg(realm);
-      if (im) { const h = Math.max(TP * z * (razed ? 1.3 : 2.15), z < 0.5 ? 40 : 0), w = im.width * h / im.height; ctx.drawImage(im, s.x - w / 2, s.y + TP * z * 0.46 - h, w, h); }
+      if (im) { const h = Math.max(TP * z * (razed ? 1.3 : 2.15), z < 0.5 ? 40 : 0), w = im.width * h / im.height; ctx.drawImage(im, s.x - w / 2, s.y + TP * z * 0.46 - h, w, h);
+        this.cityHits.push({ id: c.id, x: c.x, y: c.y, kind: 'castle', r: [s.x - w * 0.42, s.y + TP * z * 0.46 - h * 0.92, w * 0.84, h * 0.92] }); }
       cityLabels.push({ c, s, realm, owner, live, razed });
     }
     // route preview
@@ -237,6 +240,7 @@ export class MapView {
     const fs = Math.max(z < 0.42 ? 10 : 11, Math.min(20, TP * z * 0.36)); ctx.font = `700 ${fs}px Cinzel, Georgia, serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
     const y = s.y + TP * z * 0.78;
     ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(8,14,24,0.85)'; ctx.strokeText(c.name, s.x, y); ctx.fillStyle = '#fff6dc'; ctx.fillText(c.name, s.x, y);
+    { const tw = ctx.measureText(c.name).width; this.cityHits?.push({ id: c.id, x: c.x, y: c.y, kind: 'label', r: [s.x - tw / 2 - 8, y - fs - 6, tw + 16, fs + (z >= 0.7 ? fs * 0.6 + 22 : 12)] }); }
     if (z >= 0.7) {
       const tag = razed ? 'Ruins' : owner ? realm.name : 'Unsworn'; const f2 = Math.max(9, fs * 0.6); ctx.font = `600 ${f2}px Inter, sans-serif`;
       const tw = ctx.measureText(tag).width + 16, th = f2 + 7; const ty = y + 4; ctx.fillStyle = 'rgba(11,19,32,0.88)'; ctx.fillRect(s.x - tw / 2, ty, tw, th);

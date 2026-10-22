@@ -383,7 +383,7 @@ table.t{font-family:var(--body)}table.t td{border-bottom-color:rgba(255,255,255,
 .capgold{font:800 15px var(--display);color:var(--gl-hi)}.capgold.none{color:#8fa1b6;font-weight:600}
 
 /* ===== phone layouts from the approved board (PhoneLand, PhonePort2). body.pl = held sideways, body.pp = held upright ===== */
-#ptop,#cmdhero,#cmdmore,.minihint{display:none}
+#ptop,#cmdmore,.minihint{display:none}
 #minislot{background:#1f4e6e}
 .sheet .sheetbtns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.sheet .sheetbtns .btn{min-height:46px;font-size:13px}
 #ptop{align-items:center;gap:10px;color:var(--parch);font:700 13px var(--display);letter-spacing:.1em;text-transform:uppercase;z-index:30}
@@ -524,3 +524,22 @@ body.pl .ucard,body.pp .ucard{display:flex;flex-direction:column;align-items:cen
 body.pp #cmds{grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;padding:5px}
 body.pp #cmds>#cmdcity{display:flex}
 body.pp .btn.cmd{font-size:9.5px}
+/* ===== commands: every one a button (Matt 22 Oct: easy like the original, nothing hidden) ===== */
+.btn.cmd .sh{display:none}
+
+body.pl #cmds>.btn.cmd,body.pp #cmds>.btn.cmd{display:none}
+body.pl #cmds>.btn.cmd.ph,body.pp #cmds>.btn.cmd.ph{display:flex}
+body.pl .btn.cmd .lg,body.pp .btn.cmd .lg{display:none}body.pl .btn.cmd .sh,body.pp .btn.cmd .sh{display:block}
+body.pp #cmds{grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;padding:4px}
+body.pp .btn.cmd{min-height:44px;padding:3px 1px;font-size:9px;letter-spacing:.03em}body.pp .btn.cmd img{width:16px;height:16px}
+body.pl #cmds{grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:4px}
+body.pl .btn.cmd{min-height:38px;padding:2px 1px;font-size:9px;letter-spacing:.03em;gap:1px}body.pl .btn.cmd img{width:15px;height:15px}
+body.pl #minislot{aspect-ratio:auto;height:96px}
+body.pl #endwrap #endbtn{min-height:46px}
+/* phone order: the things you press most come first */
+body.pl #cmdnext,body.pp #cmdnext{order:1}body.pl #cmdfort,body.pp #cmdfort{order:2}body.pl #cmddone,body.pp #cmddone{order:3}body.pl #cmdcity,body.pp #cmdcity{order:4}body.pl #cmdinfo,body.pp #cmdinfo{order:5}body.pl #cmdhero,body.pp #cmdhero{order:6}
+body.pl #cmdwake,body.pp #cmdwake{order:7}body.pl #cmdcities,body.pp #cmdcities{order:8}body.pl #cmddisband,body.pp #cmddisband{order:9}body.pl #cmdcentre,body.pp #cmdcentre{order:10}body.pl #cmdmap,body.pp #cmdmap{order:11}body.pl #cmdrep,body.pp #cmdrep{order:12}
+/* scene cards: ruins, temples, libraries, sages */
+.scenecard .scene{display:block;width:calc(100% + 40px);margin:-20px -20px 12px;max-height:34vh;object-fit:cover}
+.odds.big{display:flex;align-items:center;gap:10px;margin-top:6px}.odds.big .bar{flex:1;height:12px}.odds.big b{font:800 22px var(--display);color:var(--gl-hi)}
+#cmdsearch{order:6}
