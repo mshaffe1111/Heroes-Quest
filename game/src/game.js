@@ -209,7 +209,7 @@ async function endTurnInner() {
 }
 async function ruinsDialog(city) {
   const cost = S.g.rules.rebuildRazedCityCost; const gold = S.g.realms.get(S.me).gold;
-  const yes = await confirmBox({ title: `${city.name} lies in ruins`, text: `You can raise it again for ${num(cost)} gold (you have ${num(gold)}). Your armies are standing in the ruins.`, ok: gold >= cost ? 'Rebuild' : 'Leave it', cancel: 'Leave it' });
+  const yes = await sceneCard('razed', 'Ashes and rubble', `${city.name} lies in ruins`, h('p', { class: 'sub' }, gold >= cost ? `You can raise it again for ${num(cost)} gold (you have ${num(gold)}). Your armies are standing in the ruins.` : `Raising it again costs ${num(cost)} gold; you have ${num(gold)}. Your armies are standing in the ruins.`), gold >= cost ? [['Leave it', false], [`Rebuild for ${num(cost)} gold`, true, true]] : [['Leave it', false, true]]);
   if (yes && gold >= cost) { const r = E.rebuildCity(S.g, S.me, city.id); if (r.ok) { toast(`${city.name} is rebuilt.`, 'good'); S.view.touch(); await new Promise((done) => D.openCity(city.id, { onClose: done })); } }
 }
 async function concede() {
@@ -304,6 +304,7 @@ function preview(x, y) {
   if (x === S.sel.x && y === S.sel.y) return;
   const search = E.routeSearch(g, ids); const r = E.routeTo(search, { x, y });
   if (!r) { toast('Your armies cannot get there.', 'bad'); S.path = null; S.view.path = null; refresh(); return; }
+  if (!r.steps.length) return;      // already there
   const last = r.steps[r.steps.length - 1]; const { turnAt, extra } = marchTurns(armies, r.steps);
   const squares = r.steps.filter((s) => s.action !== 'embark' && s.action !== 'disembark').length; const straight = Math.max(Math.abs(x - S.sel.x), Math.abs(y - S.sel.y));
   const why = squares > straight * 2 + 2 ? ' · the way goes around' : extra >= 2 && r.steps.some((s) => { const t = E.tileAt(g, s.x, s.y); return t && !t.road && !t.cityId && (t.terrain === 'woods' || t.terrain === 'hills'); }) ? ' · woods and hills are slow' : '';
@@ -495,6 +496,10 @@ function enemySheet(x, y) {
     h('p', { class: 'sub', style: { margin: '0 0 10px' } }, dug ? 'They have fortified: you can see the army in front, but not how many stand behind it.' : full ? 'Strongest first. They fight weakest first, so the strongest comes last.' : `On ${lvl === 'hard' ? 'Hard' : 'Expert'} you only see the army in front. ${ord.length > 1 ? `${ord.length - 1} more stand behind it.` : ''}`),
     h('div', { class: 'acards' }, show.map(card)), h('div', { class: 'foot' }, S.sel ? h('button', { class: 'btn', onclick: () => { close(); preview(x, y); } }, 'Plan an attack') : null, h('button', { class: 'btn pri', onclick: close }, 'Close'))], { width: 560, onClose: close, cls: 'sheet' }));
 }
+/** What an item does, in a few words. */
+function itemEffect(it) { const d = { ...(E.ITEMS?.[it.key] ?? {}), ...it }; const p = [];
+  if (d.strength) p.push(`+${d.strength} to his own strength`); if (d.command) p.push(`+${d.command} to every army with him`); if (d.fly) p.push('his whole group flies'); if (d.speed) p.push('he moves further each turn'); if (d.tax) p.push(`+${d.tax} gold a turn`); if (d.standard) p.push('the realm’s Standard');
+  return p.length ? ` (${p.join(', ')})` : ''; }
 function armySheet(arm, focusId = null) {
   const g = S.g; if (!arm?.length) return; let m; const close = () => m.close();
   const status = (a) => (a.afloat ? 'At sea' : a.fortified ? 'Fortified' : a.goal ? 'Marching on a route' : a.done ? 'Done for this turn' : a.mp <= 0 ? 'No moves left this turn' : 'Ready for orders');
@@ -504,7 +509,7 @@ function armySheet(arm, focusId = null) {
     if (hero) { const th = g.rules.heroXpThresholds ?? []; const next = th[a.level]; rows.unshift(['Level', `${a.level}${next != null ? ` · ${a.xp} of ${next} experience to level ${a.level + 1}` : ' (the highest)'}`]);
       const cmd = (E.naturalCommand?.(E.heroCoreStrength(a, g.rules)) ?? 0) + (E.heroCommandItems?.(a) ?? 0); if (cmd) rows.push(['Leads', `+${cmd} strength to every army in his group`]); }
     const q = hero ? g.realms.get(a.owner)?.quest : null; const questLine = q && q.heroId === a.id ? [`Quest: ${q.text}${q.goal ? ` (${q.progress ?? 0} of ${q.goal})` : ''}. ${rewardText(q.reward)}`] : [];
-    const extra = hero ? [...questLine, ...(a.items ?? []).map((it) => `Carries ${it.name ?? E.ITEMS?.[it.key]?.name ?? 'an item'}`), ...(a.perks ?? []).map((k) => `${E.PERKS?.[k]?.name ?? k}: ${E.PERKS?.[k]?.text ?? ''}`)] : abilities(a);
+    const extra = hero ? [...questLine, ...(a.items ?? []).map((it) => `Carries ${it.name ?? E.ITEMS?.[it.key]?.name ?? 'an item'}${itemEffect(it)}`), ...(a.perks ?? []).map((k) => `${E.PERKS?.[k]?.name ?? k}: ${E.PERKS?.[k]?.text ?? ''}`)] : abilities(a);
     return h('div', { class: 'acard' + (a.id === focusId ? ' focus' : '') + (hero ? ' hero' : '') },
       h('div', { class: 'ahead' }, h('img', { src: medalImg(a.afloat ? 'navy' : a.type, a.owner, 96), alt: '' }), h('div', {}, h('b', {}, unitName(a)), h('small', {}, hero ? 'Hero' + (a.portrait ? '' : '') : d.special ? 'Rare army' : 'Army'), h('em', {}, status(a)))),
       h('div', { class: 'arows' }, rows.map(([k, v]) => h('div', {}, h('span', {}, k), h('b', {}, v)))),
@@ -570,14 +575,14 @@ async function searchHere() {
     }
   } else if (site.kind === 'temple') {
     const r = E.visitTemple(g, ids); if (!r.ok) { toast('Nothing happens here.'); return; }
-    sfx('chime'); await sceneCard('quest', 'A temple', r.blessed ? `${r.blessed} ${r.blessed === 1 ? 'army is' : 'armies are'} blessed` : 'You have been blessed here before', h('p', { class: 'sub' }, r.blessed ? 'Each blessed army fights one strength higher from now on. A temple blesses each army only once.' : 'Each army can be blessed once at each temple. Bring new armies.'), [['Continue', true, true]]);
+    sfx('chime'); await sceneCard('temple', 'A temple', r.blessed ? `${r.blessed} ${r.blessed === 1 ? 'army is' : 'armies are'} blessed` : 'You have been blessed here before', h('p', { class: 'sub' }, r.blessed ? 'Each blessed army fights one strength higher from now on. A temple blesses each army only once.' : 'Each army can be blessed once at each temple. Bring new armies.'), [['Continue', true, true]]);
     const offer = g.realms.get(S.me).questOffer;
     if (offer) { const yes = await sceneCard('quest', 'The priests have a quest', offer.text, [h('p', { class: 'sub' }, `For ${g.armies.get(offer.heroId)?.name ?? 'your hero'}. ${rewardText(offer.reward)}`), h('p', { class: 'sub' }, 'You can hold one quest at a time. It ends if the hero dies.')], [['Decline', false], ['Accept the quest', true, true]]);
       if (yes) { E.acceptQuest(g, S.me); toast('Quest accepted: ' + offer.text, 'good'); } else E.declineQuest(g, S.me); }
   } else if (site.kind === 'library') {
     if (!hero) { toast('Only a hero can study at a library.'); return; }
     const r = E.studyLibrary(g, ids); if (!r.ok) { toast(r.reason === 'already-studied' ? `${hero.name ?? 'This hero'} has already studied here.` : 'Nothing to study here.'); return; }
-    sfx('chime'); await sceneCard('levelup', 'A library', `${hero.name ?? 'Your hero'} studies`, h('p', { class: 'sub' }, `+${r.xp} experience${r.levels ? ` · now level ${hero.level}` : ''}.`), [['Continue', true, true]]);
+    sfx('chime'); await sceneCard('sage', 'A library', `${hero.name ?? 'Your hero'} studies`, h('p', { class: 'sub' }, `+${r.xp} experience${r.levels ? ` · now level ${hero.level}` : ''}.`), [['Continue', true, true]]);
   } else if (site.kind === 'tower') { await towerVisit(ids); }
   else { toast(`The ${what} is sealed. Nothing to find here yet.`); return; }
   S.view.touch(); refresh(); await levelUps(); D.doAutosave();

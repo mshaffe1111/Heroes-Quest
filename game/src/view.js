@@ -8,7 +8,7 @@ const SPR = [...['apple', 'blossom', 'coppice', 'dark', 'elder', 'gnarled', 'ivy
   ...['brown4', 'forest5', 'scree6', 'snow1', 'snow2', 'spire3'].map((n) => 'mtn_' + n),
   ...['cairn', 'fernrock', 'gorse', 'heather', 'ledge', 'lichen', 'menhir', 'mossrock', 'scrubtree', 'stones'].map((n) => 'hd_' + n),
   ...['r1', 'r2', 'r3', 'pile', 'grassrock', 'slab5'].map((n) => 'rock_' + n)];
-const SITE = ['temple', 'mage_tower', 'jetty', 'razed_castle', 'bones', 'ruin_arch', 'ruin_columns', 'ruin_keep', 'ruin_statue', 'harbor', 'trove', 'shrine', 'standard'];
+const SITE = ['temple', 'mage_tower', 'jetty', 'razed_castle', 'bones', 'ruin_arch', 'ruin_columns', 'ruin_keep', 'ruin_statue', 'harbor', 'trove', 'shrine', 'standard', 'library'];
 const MEDALS = ['arch', 'bat', 'cat', 'demon', 'devil', 'drag', 'dwarf', 'ele', 'elem', 'elf', 'flag', 'giant', 'grif', 'hcav', 'hero', 'hinf', 'lcav', 'linf', 'mino', 'navy', 'orc', 'peg', 'pike', 'scout', 'spid', 'undead', 'uni', 'wiz', 'wolf', 'wyrm'];
 const CASTLES = Object.values(E.PALETTE).length ? Object.keys(E.PALETTE) : [];
 
@@ -179,8 +179,8 @@ export class MapView {
       const s = S(x, y);
       if (t.site) {
         const st = E.siteAt(g, x, y); const kind = st?.kind ?? t.site;
-        const name = kind === 'temple' ? 'temple' : kind === 'tower' ? 'mage_tower' : kind === 'library' ? 'shrine' : st?.stronghold ? 'ruin_keep' : 'ruin_' + ['arch', 'columns', 'keep', 'statue'][Math.floor(rnd(x, y, 9) * 4)];
-        const im = this.a.site[name]; const tall = { mage_tower: 1.9, temple: 1.55, shrine: 1.45 }[name] ?? 1.5;
+        const name = kind === 'temple' ? 'temple' : kind === 'tower' ? 'mage_tower' : kind === 'library' ? (this.a.site.library ? 'library' : 'shrine') : st?.stronghold ? 'ruin_keep' : 'ruin_' + ['arch', 'columns', 'keep', 'statue'][Math.floor(rnd(x, y, 9) * 4)];
+        const im = this.a.site[name]; const tall = { mage_tower: 1.9, temple: 1.55, shrine: 1.45, library: 1.5 }[name] ?? 1.5;
         if (im) { const h = Math.max(TP * z * tall, z < 0.5 ? 22 : 0), w = im.width * h / im.height;
           ctx.fillStyle = 'rgba(14,24,8,0.32)'; ctx.beginPath(); ctx.ellipse(s.x, s.y + TP * z * 0.36, w * 0.42, h * 0.09, 0, 0, Math.PI * 2); ctx.fill();
           ctx.globalAlpha = st?.explored ? 0.62 : 1; ctx.drawImage(im, s.x - w / 2, s.y + TP * z * 0.4 - h, w, h); ctx.globalAlpha = 1;
