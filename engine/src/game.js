@@ -407,12 +407,12 @@ export function heroHireCost(g, realmId) {
   const n = [...g.armies.values()].filter((a) => a.owner === realmId && isHero(a)).length;
   return heroPriceFor(g.rules, realmId, n === 0 ? g.rules.heroHireFirst : g.rules.heroHireBase + g.rules.heroHirePerHero * (n - 1));
 }
-/** the 90s original: each turn there is a 1 in 6 chance that a hero offers himself for hire, if you can pay. The offer lasts that turn. */
+/** Rare in Heroes Quest (1 in 80 a turn), 1 in 6 a turn under classic rules; a hero offers himself for hire if you can pay. The offer lasts that turn. */
 function rollHeroOffer(g, realmId) {
   const realm = g.realms.get(realmId); realm.heroOffer = null;
   const heroes = [...g.armies.values()].filter((a) => a.owner === realmId && isHero(a)).length;
   const cities = [...g.cities.values()].filter((c) => c.owner === realmId && !c.razed);
-  if (!cities.length || heroes >= heroLimit(g, realmId) || g.rng.next() >= g.rules.heroOfferChance) return null;
+  if (!cities.length || heroes >= heroLimit(g, realmId) || g.rng.next() >= (g.rules.classic ? g.rules.heroOfferChanceClassic : g.rules.heroOfferChance)) return null;
   const cost = heroHireCost(g, realmId); if (realm.gold < cost) return null;
   const city = cities[Math.floor(g.rng.next() * cities.length)];
   realm.heroOffer = { cityId: city.id, cost, name: HERO_NAMES[Math.floor(g.rng.next() * HERO_NAMES.length)] };

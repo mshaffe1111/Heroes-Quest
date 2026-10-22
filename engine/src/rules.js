@@ -40,7 +40,8 @@ export const DEFAULT_RULES = {
   ruinGold: [150, 600],       // PLACEHOLDER
   ruinRewardWeights: { gold: 30, item: 30, ally: 25, sage: 15 },   // PLACEHOLDER mix of gold / artefact / ally / sage
   libraryXp: 2,               // PLACEHOLDER (the later sequel library)
-  heroOfferChance: 1 / 6,     // VERIFIED (Heeter): a 1 in 6 chance each turn, if you can afford one
+  heroOfferChance: 1 / 80,    // Heroes Quest: a hero offering himself is rare, about once or twice in a very long game
+  heroOfferChanceClassic: 1 / 6, // classic rules keep the original 1 in 6 each turn, if you can afford one
   heroHireFirst: 100,         // PLACEHOLDER: price of a hero when you have none
   heroHireBase: 300, heroHirePerHero: 150,   // PLACEHOLDER: later heroes cost more
   flagVectorPerTurn: 4,       // VERIFIED (manual 15b): at most four armies per turn reach a planted standard
