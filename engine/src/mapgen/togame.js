@@ -1,7 +1,7 @@
 import { T } from './terrain.js';
 import { createGame, addRealm, addCity, addArmy, setTile, tileAt, isEmbarkPoint, giveStandard } from '../game.js';
 import { addSite, guardianTypes } from '../sites.js';
-import { ARMIES, isBuildableType } from '../armies.js';
+import { ARMIES, isBuildableType, signatureOf } from '../armies.js';
 import { makeRng } from '../rng.js';
 import { REALM_SHIPS } from '../palette.js';
 
@@ -10,10 +10,31 @@ export const REALMS = [
   { id: 'ivory', name: 'Ivory Order', color: 'white' }, { id: 'gold', name: 'Gold Dominion', color: 'gold' }, { id: 'ember', name: 'Ember Clans', color: 'orange' },
   { id: 'crimson', name: 'Crimson Horde', color: 'red' }, { id: 'verdant', name: 'Verdant Court', color: 'green' }, { id: 'azure', name: 'Azure League', color: 'blue' },
   { id: 'tidewatch', name: 'Tidewatch Riders', color: 'cyan' }, { id: 'ashen', name: 'Ashen Legion', color: 'black' },
-].map((r) => ({ ...r, ship: REALM_SHIPS[r.id] }));
+].map((r) => ({ ...r, ship: REALM_SHIPS[r.id], signature: signatureOf(r.id) }));
+export const REALM_IDS = REALMS.map((r) => r.id);
+export const NEUTRAL_KINDS = ['normal', 'strong', 'active'];
+
+/** Check a realmIds option: 2..8 distinct known realm ids, no more than the map has capitals. Returns an error message or null. */
+export function realmIdsError(realmIds, caps = REALMS.length) {
+  if (!Array.isArray(realmIds)) return 'realmIds must be an array';
+  if (realmIds.length < 2 || realmIds.length > REALMS.length) return `realmIds must list 2 to ${REALMS.length} realms`;
+  const bad = realmIds.find((id) => !REALM_IDS.includes(id)); if (bad !== undefined) return `unknown realm: ${bad}`;
+  if (new Set(realmIds).size !== realmIds.length) return 'realmIds must not repeat a realm';
+  if (realmIds.length > caps) return `the map has only ${caps} capitals for ${realmIds.length} realms`;
+  return null;
+}
 const HERO_NAMES = ['Aldric', 'Brenna', 'Cassian', 'Dara', 'Edric', 'Fenna', 'Gareth', 'Hilde', 'Ivor', 'Jora', 'Kell', 'Lyra'];
 const BASICS = ['linf', 'hinf', 'orc', 'scout', 'pike', 'lcav'];
 const BUILDABLE = Object.keys(ARMIES).filter(isBuildableType);
+
+const START_SIGNATURE_ARMIES = 2;     // signature armies each capital starts with, beside the hero
+/** Make sure a capital builds its realm's signature army: add it if there is a free slot (4 at most), else it replaces the dearest kind. */
+function withSignature(c, sig) {
+  if (!sig || c.production.includes(sig)) return;
+  if (c.production.length < 4) c.production.push(sig);
+  else { let k = 0; c.production.forEach((t, j) => { if (ARMIES[t].cost >= ARMIES[c.production[k]].cost) k = j; }); c.production[k] = sig; }
+  c.production.sort((a, b) => ARMIES[a].cost - ARMIES[b].cost);
+}
 
 const D8 = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
 
@@ -32,9 +53,13 @@ function pickProduction(rng, capital) {
 
 /**
  * Turn a generated map into a playable game (a `game.js` world).
- *   opts: { seed, neutrals: 'normal' | 'strong' | 'active' (manual 14a, default 'normal') }
+ *   opts: { seed, neutrals: 'normal' | 'strong' | 'active' (manual 14a, default 'strong', Matt 2026-10-22), realmIds }
  *   Neutral cities start with ONE defender: normal = the weakest the city can build, strong = any type it builds, active = strong, and if an
  *   attack on it fails it builds extra defenders up to five. Boat-only islet castles are always at least 'strong'.
+ *   realmIds (rival count, chosen in the wizard): 2..8 distinct realm ids; element 0 is the player's realm and gets map capital 0, element k
+ *   gets map capital k. Realms not listed do not exist: their capitals (and any cities the map gave them) become ordinary Unsworn cities.
+ *   Default: one realm per map capital, in REALMS order (all 8 on an 8-realm map).
+ *   Each realm starts in its capital with its hero (carrying the Standard) and two of its signature army; the capital always builds that army.
  * Tile mapping: sea and lakes -> water; great-river cells -> water (a bridge deck where a road crosses); sea-causeway cells -> water with
  * a bridge deck; grass/sand -> open; forest -> woods; hills; mountains. Road cells carry `road`. Water touching land has `shore`.
  * Port-flagged castles that do not touch the sea get an anchor square (`port`) on the nearest coast; every landmass with castles is
@@ -69,15 +94,20 @@ export function mapToGame(map, opts = {}) {
   }
 
   // ---- realms ----
-  const nRealms = map.caps.length;
-  for (let r = 0; r < nRealms; r++) { const realm = addRealm(g, { id: REALMS[r].id, name: REALMS[r].name }); realm.color = REALMS[r].color; realm.ship = REALMS[r].ship; }
-  const ownerId = (i) => (map.owner[i] >= 0 ? REALMS[map.owner[i]].id : null);
+  const neutrals = opts.neutrals ?? 'strong';
+  if (!NEUTRAL_KINDS.includes(neutrals)) throw new Error(`unknown neutrals setting: ${neutrals}`);
+  const realmIds = opts.realmIds ?? REALMS.slice(0, map.caps.length).map((r) => r.id);
+  if (opts.realmIds != null) { const err = realmIdsError(realmIds, map.caps.length); if (err) throw new Error(err); }
+  for (const id of realmIds) { const R = REALMS.find((x) => x.id === id); const realm = addRealm(g, { id: R.id, name: R.name }); realm.color = R.color; realm.ship = R.ship; realm.signature = R.signature; }
+  const ownerId = (i) => (map.owner[i] >= 0 && map.owner[i] < realmIds.length ? realmIds[map.owner[i]] : null);
 
   // ---- cities ----
-  const capSet = new Set(map.caps);
+  const capSet = new Set(map.caps.filter((_, r) => r < realmIds.length));      // capitals of realms that exist; a left-out realm's capital is an ordinary city
   map.cities.forEach(([y, x], i) => {
     const production = pickProduction(rng, capSet.has(i));
-    addCity(g, { id: `c${i}`, name: map.names[i], x, y, income: 13 + Math.floor(rng.next() * 18), production, owner: ownerId(i) });
+    const owner = ownerId(i);
+    const c = addCity(g, { id: `c${i}`, name: map.names[i], x, y, income: 13 + Math.floor(rng.next() * 18), production, owner });
+    if (capSet.has(i) && owner) withSignature(c, signatureOf(owner));
   });
 
   // ---- sites ----
@@ -122,20 +152,23 @@ export function mapToGame(map, opts = {}) {
   });
 
   // ---- armies ----
-  const cheapest = (c, n) => c.production.slice().sort((a, b) => ARMIES[a].cost - ARMIES[b].cost).slice(0, n);
   const fill = (c, owner, count) => { for (let k = 0; k < count; k++) addArmy(g, c.production[k % c.production.length], owner, c.x, c.y); };
   map.cities.forEach((_, i) => {
     const c = g.cities.get(`c${i}`);
     if (c.owner) {
-      if (capSet.has(i)) { for (const t of cheapest(c, 3)) addArmy(g, t, c.owner, c.x, c.y); const hero = addArmy(g, 'hero', c.owner, c.x, c.y, { name: rng.pick(HERO_NAMES) }); giveStandard(g, hero.id); }
+      if (capSet.has(i)) {      // hero + two of the realm's signature army (Matt, 2026-10-22; was the three cheapest kinds it builds)
+        const sig = signatureOf(c.owner);
+        for (let k = 0; k < START_SIGNATURE_ARMIES; k++) addArmy(g, sig, c.owner, c.x, c.y, ARMIES[sig].special ? { cityBuilt: true } : {});
+        const hero = addArmy(g, 'hero', c.owner, c.x, c.y, { name: rng.pick(HERO_NAMES) }); giveStandard(g, hero.id);
+      }
       else fill(c, c.owner, 1 + Math.floor(rng.next() * 2));
     } else {
       // the Unsworn: one defender (manual 14a). Islet castles are never 'normal': the voyage should be answered by a real fight
-      const kind = map.isle[i] && (opts.neutrals ?? 'normal') === 'normal' ? 'strong' : (opts.neutrals ?? 'normal');
+      const kind = map.isle[i] && neutrals === 'normal' ? 'strong' : neutrals;
       const type = kind === 'normal' ? c.production.slice().sort((a, b) => ARMIES[a].str - ARMIES[b].str || ARMIES[a].cost - ARMIES[b].cost)[0] : rng.pick(c.production);
       addArmy(g, type, null, c.x, c.y); if (kind === 'active') c.active = true;
     }
   });
-  g.map = { shape: map.shape, seed: map.seed, caps: map.caps.map((c) => `c${c}`), isle: map.cities.map((_, i) => (map.isle[i] ? `c${i}` : null)).filter(Boolean) };
+  g.map = { shape: map.shape, seed: map.seed, caps: map.caps.filter((_, r) => r < realmIds.length).map((c) => `c${c}`), isle: map.cities.map((_, i) => (map.isle[i] ? `c${i}` : null)).filter(Boolean) };
   return { game: g, notes };
 }

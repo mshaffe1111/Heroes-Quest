@@ -4,6 +4,8 @@ import { hasPerk, isHero } from './units.js';
  * Hero perks (Heroes Quest). Each level a hero gains earns one perk point. Spending it, the player is offered a shortlist of three perks
  * drawn from the pool below, leaning toward the hero's temperament, and keeps one. Names and effects are our own.
  * Every number here is a PLACEHOLDER (see rules.js for the tunable ones).
+ * Heroes reach level 9, so a hero earns up to 8 perk points: exactly the 8 perks offerable today. The shortlist is drawn only from perks he
+ * does not have yet, so late picks may offer fewer than three; once none are left, any further point is dropped (offerPerks says 'no-perks-left').
  */
 export const PERKS = {
   rally:      { name: 'Rally',         text: 'In the first two duels of any battle, the stack gets +1 stack bonus.' },
@@ -28,6 +30,9 @@ export const TEMPERAMENTS = {
 };
 const TEMPER_KEYS = Object.keys(TEMPERAMENTS);
 
+/** Perks this hero could still be offered (offerable ones he does not have). */
+export const perksLeft = (h) => OFFERABLE.filter((k) => !hasPerk(h, k));
+
 /** The three perks on offer for this hero's next pick. The offer is remembered, so asking again shows the same three. */
 export function offerPerks(g, heroId, count = 3) {
   const h = g.armies.get(heroId);
@@ -36,7 +41,8 @@ export function offerPerks(g, heroId, count = 3) {
   if (h.perkOffer?.length) return { ok: true, offer: h.perkOffer };
   h.temperament ??= TEMPER_KEYS[Math.floor(g.rng.next() * TEMPER_KEYS.length)];
   const favours = TEMPERAMENTS[h.temperament].favours;
-  const pool = OFFERABLE.filter((k) => !hasPerk(h, k));
+  const pool = perksLeft(h);
+  if (!pool.length) { h.perkPoints = 0; h.perkOffer = null; return { ok: false, reason: 'no-perks-left' }; }     // he has every perk there is: nothing to choose
   const offer = [];
   while (offer.length < count && pool.length) {
     const weights = pool.map((k) => (favours.includes(k) ? 3 : 1));

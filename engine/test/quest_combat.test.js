@@ -73,16 +73,18 @@ test('after a battle in the game, survivors stay wounded; classic mode forgets t
   }
 });
 
-test('wounds heal only inside one of your own cities, two pips a turn', () => {
+test('wounds heal only inside one of your own cities, one pip a turn', () => {
   const g = world();
   E.addCity(g, { id: 'c1', x: 1, y: 1, income: 0, owner: 'A', production: [] });
   const inside = E.addArmy(g, 'giant', 'A', 1, 1, { wounded: 3 });
   const outside = E.addArmy(g, 'giant', 'A', 4, 4, { wounded: 3 });
   const foe = E.addArmy(g, 'giant', 'B', 1, 1, { wounded: 3 });    // an enemy standing in A's city is not healed by A's turn
   E.beginTurn(g, 'A');
-  assert.equal(inside.wounded, 1);
+  assert.equal(inside.wounded, 2);
   assert.equal(outside.wounded, 3);
   assert.equal(foe.wounded, 3);
+  E.beginTurn(g, 'A');
+  assert.equal(inside.wounded, 1);
   E.beginTurn(g, 'A');
   assert.equal(inside.wounded, 0);
 });

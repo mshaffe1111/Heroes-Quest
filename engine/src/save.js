@@ -3,9 +3,10 @@
 // (an army that is both in g.armies and in a vectored army's transit record) come back as the same single object.
 // Keys starting with "_" are caches and are not saved. The dice position is saved, so a loaded game plays on exactly as the original would have.
 import { makeRng } from './rng.js';
+import { DEFAULT_RULES } from './rules.js';
 
 export const SAVE_FORMAT = 'heroes-quest-save';
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;   // 2: rules are topped up from DEFAULT_RULES on load; v1 saves get today's rule values for the 22 Oct decisions
 export const AUTO_SLOTS = ['auto1', 'auto2'];
 export const MANUAL_SLOTS = ['slot1', 'slot2', 'slot3', 'slot4'];
 export const ALL_SLOTS = [...AUTO_SLOTS, ...MANUAL_SLOTS];
@@ -95,6 +96,9 @@ export function loadGame(data) {
   delete g.tilesPacked;
   for (const k of ['realms', 'cities', 'armies', 'tiles', 'rules']) if (!g[k]) return bad('damaged');
   if (!(g.realms instanceof Map) || !(g.armies instanceof Map)) return bad('damaged');
+  // migrations: rule keys added after the save was made get today's defaults (a missing key used to read as undefined)
+  for (const [k, v] of Object.entries(DEFAULT_RULES)) if (!(k in g.rules)) g.rules[k] = typeof v === 'object' && v ? JSON.parse(JSON.stringify(v)) : v;
+  if ((data.version ?? 1) < 2) for (const k of ['heroOfferChance', 'cityGarrisonLimit', 'cityHeal']) if (k in DEFAULT_RULES) g.rules[k] = DEFAULT_RULES[k];   // 22 Oct decisions reach older saves too
   g.rng = makeRng(data.seed ?? g.seed ?? 1); g.rng.setState(data.rngState);
   return { ok: true, game: g };
 }
@@ -146,7 +150,8 @@ export function saveToSlot(store, slot, name, g, extra = {}, now = Date.now()) {
 export function autosave(store, g, extra = {}, now = Date.now()) {
   const data = saveGame(g, extra); const prev = store.getItem(KEY('auto1'));
   try {
-    if (prev) store.setItem(KEY('auto2'), prev);
+    let prevTurn = null; try { prevTurn = JSON.parse(prev ?? 'null')?.summary?.turn ?? null; } catch { prevTurn = null; }
+    if (prev && prevTurn !== g.turn) store.setItem(KEY('auto2'), prev);     // a second autosave in the same turn (Main menu) replaces auto1 only
     put(store, 'auto1', { name: `Autosave, turn ${g.turn}`, auto: true, savedAt: now, summary: data.summary, file: exportSave(data) });
   } catch (e) { return { ok: false, reason: 'storage-full' }; }
   return { ok: true };

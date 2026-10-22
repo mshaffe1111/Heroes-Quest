@@ -11,6 +11,7 @@ import { aiChoosePerk } from './perks.js';
 import { buyDoctrine, doctrinePrice, hasDoctrine } from './doctrines.js';
 import { fogOn, visibleSet, knownCity, tileIndex, isExplored as isExp } from './fog.js';
 import { createArmy } from './units.js';
+import { emit } from './events.js';
 
 // A computer warlord. It gets no bonuses (manual 3e): same income, same armies, same rules as a human.
 // What it does each turn, in order: answers hero offers and quests; chooses production; lets every group carry on toward its goal
@@ -228,21 +229,28 @@ function runAttack(g, realmId, grp) {
   return 'moving';
 }
 
-function nearestOwnCity(g, realmId, from) {
+/** Room in this city for n more armies (a city holds rules.cityGarrisonLimit, 8). */
+const roomFor = (g, c, n) => armiesAt(g, c.x, c.y).length + n <= g.rules.cityGarrisonLimit;
+/** The nearest of our cities; with `need`, the nearest that still has room for that many armies. */
+function nearestOwnCity(g, realmId, from, need = 0) {
   let best = null, bd = 1e9;
-  for (const c of g.cities.values()) if (c.owner === realmId && !c.razed) { const d = cheb(from, c); if (d < bd) { bd = d; best = c; } }
+  for (const c of g.cities.values()) if (c.owner === realmId && !c.razed && (!need || roomFor(g, c, need))) { const d = cheb(from, c); if (d < bd) { bd = d; best = c; } }
   return best;
 }
 function runReturn(g, realmId, grp) {
   const ids = aliveIds(g, realmId, grp.ids); if (!ids.length) return 'dead';
-  const a = g.armies.get(ids[0]); const home = g.cities.get(grp.cityId)?.owner === realmId ? g.cities.get(grp.cityId) : nearestOwnCity(g, realmId, a);
+  const a = g.armies.get(ids[0]); let home = g.cities.get(grp.cityId);
+  if (home && home.owner === realmId && !home.razed && a.x === home.x && a.y === home.y) return 'done';
+  // a city that is not ours any more, or is already full (8), is no home: go to the nearest one with room. None anywhere: stay put (the group
+  // is dropped, the armies are not), rather than trying again and again to squeeze a ninth army in.
+  if (!home || home.owner !== realmId || home.razed || !roomFor(g, home, ids.length)) home = nearestOwnCity(g, realmId, a, ids.length);
   if (!home) return 'dead'; grp.cityId = home.id;
-  if (a.x === home.x && a.y === home.y) return 'done';
   const route = routeTo(routeSearch(g, ids, { maxCost: 600 }), home); if (!route) return 'dead';
   walk(g, realmId, grp, route);
   const b = g.armies.get(ids[0]); return b && b.x === home.x && b.y === home.y ? 'done' : 'moving';
 }
 function runExplore(g, realmId, grp) {
+  const realm = realmId;
   const ids = aliveIds(g, realmId, grp.ids); if (!ids.length) return 'dead';
   const site = siteAt(g, grp.x, grp.y); if (!site || (site.kind === 'ruin' && site.explored)) return 'return';
   const a = g.armies.get(ids[0]);
@@ -252,11 +260,12 @@ function runExplore(g, realmId, grp) {
     const b = g.armies.get(ids[0]); if (!b || b.x !== grp.x || b.y !== grp.y) return 'moving';
   }
   const live = aliveIds(g, realmId, grp.ids);
-  if (site.kind === 'temple') visitTemple(g, live);
-  else if (site.kind === 'library') studyLibrary(g, live);
+  if (site.kind === 'temple') { const r = visitTemple(g, live); emit(() => ({ t: 'site', realm, kind: 'temple', at: [site.x, site.y], blessed: r.blessed ?? 0 })); }
+  else if (site.kind === 'library') { studyLibrary(g, live); emit(() => ({ t: 'site', realm, kind: 'library', at: [site.x, site.y] })); }
   else if (site.kind === 'ruin') {
     const r = exploreRuin(g, live);
     if (r.outcome === 'sage') resolveSage(g, 0);
+    emit(() => ({ t: 'site', realm, kind: 'ruin', at: [site.x, site.y], outcome: r.outcome, gold: r.gold ?? 0, hero: live[0] }));
   }
   return 'return';
 }
@@ -264,7 +273,7 @@ function runExplore(g, realmId, grp) {
 function sendHome(g, realmId, ids) {
   const st = state(g, realmId); const live = aliveIds(g, realmId, ids); if (!live.length) return;
   const a = g.armies.get(live[0]); if (cityAt(g, a.x, a.y)?.owner === realmId) return;
-  const home = nearestOwnCity(g, realmId, a); if (home) st.groups.push({ id: st.nextId++, kind: 'return', ids: live, cityId: home.id });
+  const home = nearestOwnCity(g, realmId, a, live.length); if (home) st.groups.push({ id: st.nextId++, kind: 'return', ids: live, cityId: home.id });
 }
 
 function runGroups(g, realmId) {
@@ -272,6 +281,7 @@ function runGroups(g, realmId) {
   for (const grp of [...st.groups]) {
     grp.ids = aliveIds(g, realmId, grp.ids);
     let res = grp.ids.length ? null : 'dead';
+    if (grp.ids.length) emit(() => ({ t: 'orders', realm: realmId, group: grp.id, kind: grp.kind, ids: grp.ids.slice(), cityId: grp.cityId ?? null, site: grp.x != null ? [grp.x, grp.y] : null }));
     if (!res) res = grp.kind === 'attack' ? runAttack(g, realmId, grp) : grp.kind === 'explore' ? runExplore(g, realmId, grp) : grp.kind === 'scout' ? runScout(g, realmId, grp) : runReturn(g, realmId, grp);
     if (res === 'moving' || res === 'wait') continue;
     st.groups.splice(st.groups.indexOf(grp), 1);

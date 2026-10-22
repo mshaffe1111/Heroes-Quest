@@ -7,6 +7,7 @@ import { h, $, $$, toast, sleep, openModal, frame, closeAllModals, modalOpen, to
 import * as D from './dialogs.js';
 import { TP } from './paint.js';
 import { initAudio, sfx, stepSound, setScene } from './audio.js';
+import * as PB from './playback.js';
 
 // ======================================================================================================================
 // building a new game
@@ -14,14 +15,14 @@ export const SIZES = { 60: [150, 96], 100: [190, 120], 140: [230, 146] };
 export function newGame(o) {
   const [W, H] = SIZES[o.cities] ?? SIZES[60];
   const map = generateMap({ shape: o.shape, seed: o.seed, width: W, height: H, cities: o.cities, realms: 8 });
-  const { game: g } = E.mapToGame(map, { neutrals: 'normal' });
+  const { game: g } = E.mapToGame(map, { neutrals: o.neutrals ?? 'strong', ...(o.realmIds ? { realmIds: o.realmIds } : {}) });
   g.rules.fog = !!o.fog; g.rules.classic = !!o.classic;
   const ids = [...g.realms.keys()]; const me = o.realm && g.realms.has(o.realm) ? o.realm : ids[0];
   g.realms.get(me).human = true;
   for (const id of ids) if (id !== me) E.setDifficulty(g, id, o.difficulty ?? 'medium');
   E.assignSkills(g);
   const hero = [...g.armies.values()].find((a) => a.owner === me && a.type === 'hero'); if (hero && o.heroName) hero.name = o.heroName.slice(0, 20); if (hero && o.portrait) hero.portrait = o.portrait;
-  g.meta = { difficulty: o.difficulty ?? 'medium', shape: o.shape, seed: o.seed, cities: o.cities, startedAt: Date.now() };
+  g.meta = { difficulty: o.difficulty ?? 'medium', shape: o.shape, seed: o.seed, cities: o.cities, rivals: ids.length - 1, unsworn: o.neutrals ?? 'strong', startedAt: Date.now() };
   return g;
 }
 
@@ -34,16 +35,21 @@ function skeleton() {
   const menu = (title, items) => h('div', { class: 'mi' }, h('button', { class: 'mb', onclick: (e) => { e.stopPropagation(); const mi = e.currentTarget.parentElement; const was = mi.classList.contains('open'); $$('.mi.open').forEach((x) => x.classList.remove('open')); if (!was) { mi.classList.add('open'); const dd = mi.querySelector('.dd'), r = e.currentTarget.getBoundingClientRect(); dd.style.left = Math.max(6, Math.min(r.left, innerWidth - dd.offsetWidth - 6)) + 'px'; dd.style.top = r.bottom + 'px'; dd.style.maxHeight = (innerHeight - r.bottom - 8) + 'px'; } } }, title),
     h('div', { class: 'dd' }, items.map((it) => it === '-' ? h('hr') : h('button', { 'data-act': it[2] ?? '', onclick: () => { $$('.mi.open').forEach((x) => x.classList.remove('open')); it[1](); } }, h('span', {}, it[0]), it[3] ? h('kbd', {}, it[3]) : null))));
   const idle = () => !S.sel;
-  const top = h('div', { id: 'top' },
-    menu('Game', [['New game…', () => hooks.toTitle()], ['Save…', () => D.openSaveLoad('save'), 'save'], ['Load…', () => D.openSaveLoad('load')], '-', ['Give up…', () => concede()], ['Main menu', () => hooks.toTitle()]]),
-    menu('Army', [['Next army', () => nextArmy(), '', 'N'], ['Fortify', () => order('fortify'), '', 'F'], ['Done for this turn', () => order('done'), '', 'D'], ['Wake up', () => order('wake'), '', 'W'], '-', ['Disband…', () => order('disband')]]),
-    menu('Cities', [['Your cities…', () => D.openCities()], ['Doctrines…', () => D.openDoctrines()]]),
-    menu('Reports', [['The realms', () => D.openRealms()], ['Battle history', () => D.openHistory()]]),
-    menu('View', [['Full screen', () => toggleFullscreen(), '', 'F11'], '-', ['Zoom in', () => zoom(1.25), '', '+'], ['Zoom out', () => zoom(0.8), '', '−'], ['Whole map', () => S.view.fit()], ['Centre on selection', () => centreSel(), '', 'C'], ['Small map on/off', () => toggleMini(), '', 'M']]),
-    menu('Options', [['Options…', () => D.openOptions()]]),
-    menu('Help', [['How to play', () => D.openHelp()]]),
+  const MENUS = [['Game', [['New game…', () => hooks.toTitle()], ['Save…', () => D.openSaveLoad('save'), 'save'], ['Load…', () => D.openSaveLoad('load')], '-', ['Give up…', () => concede()], ['Main menu', () => hooks.toTitle()]]],
+    ['Army', [['Next army', () => nextArmy(), '', 'N'], ['Fortify', () => order('fortify'), '', 'F'], ['Done for this turn', () => order('done'), '', 'D'], ['Wake up', () => order('wake'), '', 'W'], '-', ['Disband…', () => order('disband')]]],
+    ['Cities', [['Your cities…', () => D.openCities()], ['Doctrines…', () => D.openDoctrines()]]],
+    ['Reports', [['The realms', () => D.openRealms()], ['Battle history', () => D.openHistory()]]],
+    ['View', [['Full screen', () => toggleFullscreen(), '', 'F11'], '-', ['Zoom in', () => zoom(1.25), '', '+'], ['Zoom out', () => zoom(0.8), '', '−'], ['Whole map', () => S.view.fit()], ['Centre on selection', () => centreSel(), '', 'C'], ['Small map on/off', () => toggleMini(), '', 'M']]],
+    ['Options', [['Options…', () => D.openOptions()]]],
+    ['Help', [['How to play', () => D.openHelp()]]]];
+  PHONE.menus = MENUS;
+  const top = h('div', { id: 'top' }, ...MENUS.map(([t, items]) => menu(t, items)),
     h('span', { class: 'sp' }), fsButton('bar'), h('span', { class: 'turn', id: 'turnlbl' }), h('span', { class: 'realm', id: 'realmlbl' }));
   const ic = (n) => h('img', { src: `play/assets/ui/icons/${n}.svg`, alt: '' });
+  // phones: one slim bar (menu, turn, realm, gold, this turn's news) instead of the menu bar
+  const ptop = h('div', { id: 'ptop' }, h('button', { class: 'pmenu', 'aria-label': 'Menu', onclick: () => phoneMenu() }, h('i'), h('i'), h('i')),
+    h('span', { class: 'pturn', id: 'pturn' }), h('span', { id: 'pcrest' }), h('span', { class: 'sp' }), h('span', { class: 'pgold', id: 'pgold' }),
+    h('button', { class: 'pbell', id: 'pbell', 'aria-label': 'This turn', onclick: () => phoneNews() }, ic('bell'), h('b', { id: 'pbelln' })));
   const cmd = (icon, label, key, fn, id) => h('button', { class: 'btn cmd', id: id ?? null, onclick: () => { if (!S.busy) fn(); } }, ic(icon), h('span', {}, label), key ? h('kbd', {}, key) : null);
   const openHere = () => { const c = S.sel && E.cityAt(S.g, S.sel.x, S.sel.y); if (c && c.owner === S.me) D.openCity(c.id); else D.openCities(); };
   const stage = h('div', { id: 'stage' },
@@ -51,26 +57,29 @@ function skeleton() {
     h('div', { id: 'status' }, h('div', { id: 'msg' })),
     h('div', { id: 'bottom' }, h('div', { id: 'cards' }), h('div', { id: 'gmove' }, h('small', {}, 'Group move'), h('b', { id: 'gmoveval' }, '–'), h('span', {}, 'The slowest army sets it'))),
     h('aside', { id: 'side' },
-      h('div', { id: 'minislot' }, h('canvas', { id: 'minimap', width: 440, height: 280 }), h('button', { class: 'btn sm', id: 'wholemap', onclick: () => S.view.fit() }, ic('map'), 'Whole map', h('kbd', {}, 'M'))),
+      h('div', { id: 'minislot' }, h('canvas', { id: 'minimap', width: 440, height: 280 }), h('span', { class: 'minihint' }, 'Tap to jump · drag to look'), h('button', { class: 'btn sm', id: 'wholemap', onclick: () => S.view.fit() }, ic('map'), 'Whole map', h('kbd', {}, 'M'))),
       h('div', { id: 'realmstrip' }),
       h('div', { id: 'cmds' },
         cmd('next', 'Next army', 'N', () => nextArmy()), cmd('fortify', 'Fortify', 'F', () => order('fortify')), cmd('done', 'Done', 'D', () => order('done')), cmd('wake', 'Wake', 'W', () => order('wake'), 'cmdwake'),
         cmd('city', 'Open city', 'Enter', openHere, 'cmdcity'), cmd('list', 'Your cities', '', () => D.openCities()), cmd('disband', 'Disband', 'Del', () => order('disband'), 'cmddisband'), cmd('centre', 'Centre', 'C', () => centreSel()),
-        cmd('zoomin', 'Zoom in', '+', () => zoom(1.25)), cmd('zoomout', 'Zoom out', '−', () => zoom(0.8)), cmd('map', 'Whole map', 'M', () => S.view.fit()), cmd('scroll', 'Reports', '', () => D.openRealms())),
+        cmd('zoomin', 'Zoom in', '+', () => zoom(1.25)), cmd('zoomout', 'Zoom out', '−', () => zoom(0.8)), cmd('map', 'Whole map', 'M', () => S.view.fit()), cmd('scroll', 'Reports', '', () => D.openRealms()),
+        cmd('hero', 'Hero', '', () => nextHero(), 'cmdhero'), cmd('menu', 'More', '', () => phoneMore(), 'cmdmore')),
       h('div', { id: 'panel' }),
       h('div', { id: 'events' }),
       h('div', { id: 'endwrap' }, h('div', { id: 'miniord' }, h('button', { class: 'btn sm', onclick: () => order('fortify') }, 'Fortify'), h('button', { class: 'btn sm', onclick: () => order('done') }, 'Done'), h('button', { class: 'btn sm', onclick: () => nextArmy() }, 'Next'), h('button', { class: 'btn sm', onclick: openHere }, 'City')),
         h('button', { class: 'btn pri', id: 'endbtn', onclick: () => endTurnClick() }, ic('hourglass_dark'), 'End turn', h('kbd', {}, 'E')))));
-  app.append(h('div', { id: 'game', class: 'hidden', style: { position: 'absolute', inset: 0 } }, top, stage), h('div', { id: 'modals' }));
+  app.append(h('div', { id: 'game', class: 'hidden', style: { position: 'absolute', inset: 0 } }, top, ptop, stage), h('div', { id: 'modals' }));
   document.addEventListener('pointerdown', (e) => { if (!e.target.closest('.mi')) $$('.mi.open').forEach((x) => x.classList.remove('open')); });
   document.addEventListener('keydown', onKey);
   placeLayout(); addEventListener('resize', placeLayout);
 }
-/** Wide screens: the small map and End turn live in the side column. Narrow screens: the side column is hidden, so they move over and under the map. */
+/** Three layouts from the approved board: the full screen (desk), a phone held sideways (pl: big map, slim column on the right with
+ *  End turn always in view) and a phone held upright (pp: small map across the top, big map, army row, four commands, End turn). */
 function placeLayout() {
-  const narrow = innerWidth <= 860; const mini = $('#minimap'), end = $('#endwrap');
-  if (narrow) { if (mini.parentElement.id !== 'mapwrap') $('#mapwrap').append(mini); if (end.parentElement.id !== 'bottom') $('#bottom').append(end); }
-  else { if (mini.parentElement.id !== 'minislot') $('#minislot').prepend(mini); if (end.parentElement.id !== 'side') $('#side').append(end); }
+  const mode = innerWidth > 860 && innerHeight > 560 ? 'desk' : innerWidth > innerHeight ? 'pl' : 'pp';
+  document.body.classList.toggle('pl', mode === 'pl'); document.body.classList.toggle('pp', mode === 'pp'); PHONE.mode = mode;
+  const mini = $('#minimap'), end = $('#endwrap');
+  if (mini.parentElement.id !== 'minislot') $('#minislot').prepend(mini); if (end.parentElement.id !== 'side') $('#side').append(end);
   S.view?.resize?.(); S.view && (S.view.dirty = true);
 }
 
@@ -84,7 +93,11 @@ export async function enterGame(g, { resume = false } = {}) {
   const old = $('#map'); const cv = old.cloneNode(false); old.replaceWith(cv);
   const view = new MapView(cv, g, S.assets, { me: S.me, onTile, onHover });
   view.minimapEl = $('#minimap'); S.view = view;
-  const mini = $('#minimap'); const mm = (e) => { const r = mini.getBoundingClientRect(); const x = (e.clientX - r.left) / r.width * g.width, y = (e.clientY - r.top) / r.height * g.height; view.centerOn(Math.floor(x), Math.floor(y)); };
+  const mini = $('#minimap'); mini.height = Math.round(mini.width * g.height / g.width);      // the small map keeps the world's shape
+  // where the picture really sits inside the element (object-fit: contain leaves bands at the sides), so a tap lands on the right square
+  const mm = (e) => { const r = mini.getBoundingClientRect(); const fit = getComputedStyle(mini).objectFit; const k = fit === 'contain' ? Math.min(r.width / mini.width, r.height / mini.height) : fit === 'cover' ? Math.max(r.width / mini.width, r.height / mini.height) : null;
+    const dw = k ? mini.width * k : r.width, dh = k ? mini.height * k : r.height, ox = r.left + (r.width - dw) / 2, oy = r.top + (r.height - dh) / 2;
+    const x = Math.max(0, Math.min(g.width - 1, (e.clientX - ox) / dw * g.width)), y = Math.max(0, Math.min(g.height - 1, (e.clientY - oy) / dh * g.height)); view.centerOn(Math.floor(x), Math.floor(y)); };
   mini.onpointerdown = (e) => { mini.setPointerCapture(e.pointerId); mm(e); mini.onpointermove = (ev) => { if (ev.buttons) mm(ev); }; };
   const cap = [...g.cities.values()].find((c) => c.owner === S.me) ?? [...g.cities.values()][0];
   const hero = [...g.armies.values()].find((a) => a.owner === S.me && a.x != null) ;
@@ -163,15 +176,21 @@ async function endTurnInner() {
   const startBattles = g.stats.battles.length; const onMe = []; E.setBattleHook((b) => { if (b.defender === S.me && b.attacker !== S.me) onMe.push(b); });
   const owned = new Map(myCities().map((c) => [c.id, c.name]));
   const others = E.liveRealms(g).filter((r) => r !== S.me);
-  for (const r of others) {
-    banner.lastChild.textContent = `${realmName(r)} is playing…`; await sleep(30);
-    try { E.beginTurn(g, r); E.aiPlay(g, r); } catch (e) { console.error('AI turn failed for', r, e); }
-    S.view?.touch();
-    if (E.gameStatus(g).over) break;
-  }
+  // Enemy turns you can watch: each computer realm plays its whole turn at once, then playback shows what the player could have seen
+  banner.style.display = 'none'; PB.open(); const timing = [];
+  try {
+    for (const r of others) {
+      PB.say(r, 'is planning its turn…'); await sleep(30);
+      const events = []; E.setActionHook((e) => events.push(e)); let built = []; const visBefore = E.fogOn(g) ? E.visibleSet(g, S.me) : null; const c0 = performance.now();
+      try { built = (E.beginTurn(g, r) ?? []).filter((e) => e.type === 'built'); E.aiPlay(g, r); } catch (e) { console.error('AI turn failed for', r, e); } finally { E.setActionHook(null); }
+      const c1 = performance.now(); S.view?.touch();
+      try { await PB.playRealm(g, r, events, built, visBefore); } catch (e) { console.error('playback failed for', r, e); S.view.ghosts = []; S.view.hide = null; S.view.cityOverride = null; }
+      timing.push({ r, compute: Math.round(c1 - c0), events: events.length, play: Math.round(performance.now() - c1) });
+      if (E.gameStatus(g).over) break;
+    }
+  } finally { PB.close(); window.HQ_LASTROUND = timing; }
   banner.remove(); E.setBattleHook(null);
   E.endRound(g);
-  if (S.opts.replay !== false) for (const b of onMe) { S.view.centerOn(b.x, b.y); S.view.touch(); await sleep(250); await D.showBattle(b.result, { attacker: b.attacker, defender: b.defender, place: b.place, tile: b.tile, theirs: true }); }
   S.busy = false;
   // what happened to me
   const lines = []; const lost = [...owned].filter(([id]) => { const c = g.cities.get(id); return c.owner !== S.me; });
@@ -340,6 +359,8 @@ async function doAttack(ids, x, y) {
 function refresh() {
   if (!S.g) return; const g = S.g; const eco = economy(); const realm = g.realms.get(S.me);
   $('#turnlbl').textContent = `Turn ${g.turn}`;
+  $('#pturn').textContent = `Turn ${g.turn}`; $('#pcrest').replaceChildren(crest(colorOf(S.me), 22)); $('#pgold').replaceChildren(h('b', {}, num(realm.gold)), h('em', { class: eco.income - eco.upkeep >= 0 ? 'p' : 'n' }, `${eco.income - eco.upkeep >= 0 ? '+' : '−'}${Math.abs(eco.income - eco.upkeep)}`));
+  const nn = (S.notes ?? []).length; $('#pbelln').textContent = nn ? String(nn) : ''; $('#pbell').classList.toggle('has', !!nn);
   S.view?.touch(); renderPanel(eco, realm); renderCards(); renderEnd(); renderEvents();
 }
 function renderPanel(eco, realm) {
@@ -358,7 +379,7 @@ function renderPanel(eco, realm) {
   const c = S.sel && E.cityAt(g, S.sel.x, S.sel.y);
   const set = (id, off) => { const b = $(id); if (b) b.disabled = !!off; };
   set('#cmdwake', !arm.some((a) => a.fortified || a.done)); set('#cmddisband', !arm.length); set('#cmdcity', false);
-  $('#cmdcity span').textContent = c && c.owner === S.me ? `Open ${c.name}` : 'Open city';
+  $('#cmdcity span').textContent = PHONE.mode !== 'desk' ? 'City' : c && c.owner === S.me ? `Open ${c.name}` : 'Open city';
   // the realm strip
   $('#realmstrip').replaceChildren(
     h('div', {}, h('small', {}, 'Gold'), h('b', {}, num(realm.gold))), h('div', {}, h('small', {}, 'Income'), h('b', { class: 'p' }, '+' + eco.income)),
@@ -402,13 +423,38 @@ function renderCards() {
 function pipsRow(a) { const mx = E.maxPips(a, S.g.rules), cur = E.pipsOf(a, S.g.rules); return h('div', { class: 'pips' }, Array.from({ length: mx }, (_, i) => h('i', { class: i < cur ? '' : 'w' }))); }
 function renderEnd() {
   const idle = S.g ? waiting().length : 0; const b = $('#endbtn'); b.disabled = S.busy;
-  $('#msg').textContent = S.path ? `${S.path.attack ? '' : 'March: '}${S.path.label}. Click the square again to confirm.` : S.sel ? `Selected: ${selArmies().length} ${selArmies().length === 1 ? 'army' : 'armies'}${E.cityAt(S.g, S.sel.x, S.sel.y) ? ' in ' + E.cityAt(S.g, S.sel.x, S.sel.y).name : ''}.` : idle ? `${idle} ${idle === 1 ? 'army is' : 'armies are'} waiting for orders.` : 'Every army has its orders.';
+  const odds = S.path?.attack && S.path.odds && S.opts.odds && !S.path.odds.empty ? ` · ${Math.round(S.path.odds.winChance * 100)}% to win` : '';
+  const tapWord = PHONE.mode === 'desk' ? 'Click' : 'Tap';
+  $('#msg').textContent = S.path ? `${S.path.attack ? '' : 'March: '}${S.path.label}${odds}. ${tapWord} the square again to confirm.` : S.sel ? `Selected: ${selArmies().length} ${selArmies().length === 1 ? 'army' : 'armies'}${E.cityAt(S.g, S.sel.x, S.sel.y) ? ' in ' + E.cityAt(S.g, S.sel.x, S.sel.y).name : ''}.` : idle ? `${idle} ${idle === 1 ? 'army is' : 'armies are'} waiting for orders.` : 'Every army has its orders.';
 }
 
 // ======================================================================================================================
 // view helpers and keys
 function zoom(f) { const v = S.view; v.zoomAt(v.w / 2, v.h / 2, v.cam.z * f); }
 function centreSel() { if (S.sel) S.view.centerOn(S.sel.x, S.sel.y); }
+// ---- phones ------------------------------------------------------------------------------------------------------------
+const PHONE = { mode: 'desk', menus: [] };
+function sheet(title, groups) {
+  let m; const close = () => m.close();
+  const body = groups.flatMap(([head, items]) => [head ? h('div', { class: 'sec' }, head) : null, h('div', { class: 'sheetbtns' }, items.filter((it) => it !== '-').map((it) => h('button', { class: 'btn', onclick: () => { close(); it[1](); } }, it[0].replace('…', ''))))]);
+  m = openModal(frame([h('h2', { style: { fontSize: '24px', marginBottom: '6px' } }, title), ...body], { width: 520, onClose: close, cls: 'sheet' }));
+}
+function phoneMenu() { sheet('Menu', PHONE.menus.filter(([t]) => t !== 'Army')); }
+function phoneMore() {
+  const openHere = () => { const c = S.sel && E.cityAt(S.g, S.sel.x, S.sel.y); if (c && c.owner === S.me) D.openCity(c.id); else D.openCities(); };
+  sheet('More orders', [['This army', [['Wake up', () => order('wake')], ['Centre on it', () => centreSel()], ['Disband', () => order('disband')], ...(PHONE.mode === 'pp' ? [['Hero', () => nextHero()], ['Open city', () => openHere()]] : [])]],
+    ['The realm', [['Your cities', () => D.openCities()], ['Doctrines', () => D.openDoctrines()], ['The realms', () => D.openRealms()], ['Battle history', () => D.openHistory()]]], ['The map', [['Whole map', () => S.view.fit()], ['Zoom in', () => zoom(1.25)], ['Zoom out', () => zoom(0.8)]]]]);
+}
+function phoneNews() {
+  const notes = S.notes ?? []; let m; const close = () => m.close();
+  m = openModal(frame([h('div', { class: 'eyebrow' }, `Turn ${S.g.turn}`), h('h2', { style: { fontSize: '24px', margin: '4px 0 10px' } }, 'This turn'), ...(notes.length ? notes.map((t) => h('p', { class: 'sub', style: { margin: '0 0 8px' } }, '◆ ', t)) : [h('p', { class: 'sub' }, 'Nothing new this turn.')])], { width: 520, onClose: close }));
+}
+/** Select the next of your heroes (and centre on it). */
+function nextHero() {
+  const hs = [...S.g.armies.values()].filter((a) => a.owner === S.me && E.isHero(a) && a.x != null); if (!hs.length) { toast('You have no hero on the map.'); return; }
+  const cur = S.sel?.ids?.find((id) => S.g.armies.get(id) && E.isHero(S.g.armies.get(id))); const i = hs.findIndex((a) => a.id === cur); const a = hs[(i + 1) % hs.length];
+  selectStack(a.x, a.y); centreSel(); refresh();
+}
 function toggleMini() { const m = $('#minimap'); m.classList.toggle('hidden'); }
 function onKey(e) {
   if (!S.g || $('#game').classList.contains('hidden')) return; if (e.target.matches('input,textarea,select')) return;

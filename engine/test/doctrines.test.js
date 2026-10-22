@@ -53,8 +53,8 @@ test('Long March: +2 move points for foot armies only', () => {
   E.beginTurn(g, 'A'); assert.equal(pike.mp, 10);
 });
 
-test('Field Hospitals: 3 pips a turn in your own cities', () => {
-  for (const [doc, healed] of [[false, 2], [true, 3]]) {
+test('Field Hospitals: 2 pips a turn in your own cities instead of 1', () => {
+  for (const [doc, healed] of [[false, 1], [true, 2]]) {
     const g = game(); if (doc) own(g, 'A', 'hospitals');
     const a = E.addArmy(g, 'hinf', 'A', 0, 1); a.wounded = 3;
     E.beginTurn(g, 'A'); assert.equal(a.wounded, 3 - healed);

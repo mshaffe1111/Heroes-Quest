@@ -40,7 +40,7 @@ export class MapView {
   constructor(canvas, g, assets, { me, onTile, onHover } = {}) {
     this.cv = canvas; this.ctx = canvas.getContext('2d'); this.g = g; this.a = assets; this.me = me; this.onTile = onTile ?? (() => {}); this.onHover = onHover ?? (() => {});
     this.painter = new Painter(g, assets); this.cam = { x: 0, y: 0, z: 0.9 }; this.sel = null; this.path = null; this.hover = null; this.marks = [];
-    this.medalCache = new Map(); this.castleCache = new Map(); this.t0 = performance.now(); this.dirty = true; this.minimap = null; this.showGrid = false;
+    this.ghosts = []; this.hide = null; this.cityOverride = null; this.fx = []; this.medalCache = new Map(); this.castleCache = new Map(); this.t0 = performance.now(); this.dirty = true; this.minimap = null; this.showGrid = false;
     this.fogCv = document.createElement('canvas'); this.fogCv.width = g.width; this.fogCv.height = g.height; this.fogStamp = '';
     this.bind(); this.resize();
     this.last = 0; const loop = (t) => { if (this.dead) return; if (this.dirty || ((this.sel || this.path) && t - this.last > 70)) { this.last = t; this.draw(); } requestAnimationFrame(loop); }; requestAnimationFrame(loop);
@@ -160,6 +160,7 @@ export class MapView {
       if (c.x < tx0 || c.x > tx1 || c.y < ty0 || c.y > ty1) continue;
       let owner = c.owner, razed = c.razed, live = true;
       if (view) { const k = view.cities.find((q) => q.id === c.id); if (!k) continue; owner = k.owner; razed = k.razed; live = k.live; }
+      const ov = this.cityOverride?.get(c.id); if (ov) { owner = ov.owner; razed = ov.razed; }     // enemy-turn playback: the old colours until the city is taken
       const s = S(c.x, c.y); const realm = owner ? g.realms.get(owner) : null;
       const im = razed ? this.a.site.razed_castle : this.castleImg(realm);
       if (im) { const h = Math.max(TP * z * (razed ? 1.3 : 2.15), z < 0.5 ? 40 : 0), w = im.width * h / im.height; ctx.drawImage(im, s.x - w / 2, s.y + TP * z * 0.46 - h, w, h); }
@@ -169,6 +170,7 @@ export class MapView {
     if (this.path && this.path.steps?.length) this.drawPath(ctx, S);
     // armies
     this.drawArmies(ctx, S, view, tx0, tx1, ty0, ty1, now);
+    if (this.ghosts.length || this.fx.length) this.drawPlayback(ctx, S, now);
     // fog
     if (view) {
       this.buildFog(view);
@@ -211,10 +213,37 @@ export class MapView {
     }
   }
 
+  // ---- enemy-turn playback : ghost stacks that walk a recorded path while the real armies are hidden ----------
+  drawPlayback(ctx, S, now) {
+    const z = this.cam.z; const D = Math.max(18, Math.min(58, TP * z * 0.68));
+    for (const gh of this.ghosts) {
+      if (gh.trail && gh.trail.length > 1) {                    // the road ahead: dotted, like the route preview
+        ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.beginPath(); gh.trail.forEach((t, i) => { const p = S(t[0], t[1]); i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); });
+        ctx.strokeStyle = 'rgba(10,18,29,0.35)'; ctx.lineWidth = 9; ctx.stroke(); ctx.setLineDash([2, 12]); ctx.strokeStyle = '#ff9a8a'; ctx.lineWidth = 4.5; ctx.stroke(); ctx.restore();
+      }
+      const p = S(gh.x, gh.y); ctx.save(); ctx.globalAlpha = gh.alpha ?? 1;
+      const hex = realmHex(this.g.realms.get(gh.owner)); const mc = this.medal(gh.type, hex);
+      ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(p.x + 2, p.y + D * 0.46, D * 0.5, D * 0.16, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.drawImage(mc, p.x - D / 2, p.y - D / 2, D, D);
+      ctx.setLineDash([7, 6]); ctx.lineDashOffset = -now * 18; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(p.x, p.y, D / 2 + 8, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+      const r = D / 2 + 14, c = 9; ctx.lineWidth = 3; ctx.beginPath();        // the four corner brackets of R15Enemy
+      for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { ctx.moveTo(p.x + sx * r, p.y + sy * (r - c)); ctx.lineTo(p.x + sx * r, p.y + sy * r); ctx.lineTo(p.x + sx * (r - c), p.y + sy * r); } ctx.stroke();
+      if (gh.count > 1) { const br = D * 0.27, bx = p.x + D * 0.38, by = p.y - D * 0.38; ctx.fillStyle = '#0b1320'; ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#f3dc9a'; ctx.lineWidth = 1.4; ctx.stroke(); ctx.fillStyle = '#fff'; ctx.font = `800 ${br * 1.25}px Inter, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(gh.count), bx, by + 0.5); ctx.textBaseline = 'alphabetic'; }
+      ctx.restore();
+    }
+    this.fx = this.fx.filter((f) => now * 1000 - f.t0 < f.ms);
+    for (const f of this.fx) {                                    // a clash: two crossed blades that swell and fade
+      const u = (now * 1000 - f.t0) / f.ms, p = S(f.x, f.y), R = TP * z * (0.5 + 0.5 * u); ctx.save(); ctx.globalAlpha = 1 - u * u; ctx.strokeStyle = f.color ?? '#ffe9a8'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(p.x - R, p.y - R); ctx.lineTo(p.x + R, p.y + R); ctx.moveTo(p.x + R, p.y - R); ctx.lineTo(p.x - R, p.y + R); ctx.stroke(); ctx.beginPath(); ctx.arc(p.x, p.y, R * 1.15, 0, Math.PI * 2); ctx.lineWidth = 3; ctx.stroke(); ctx.restore();
+    }
+    this.dirty = true;
+  }
+
   drawArmies(ctx, S, view, tx0, tx1, ty0, ty1, now) {
     const g = this.g, z = this.cam.z; const seen = new Map();
     for (const a of g.armies.values()) {
       if (a.x == null || a.x < tx0 || a.x > tx1 || a.y < ty0 || a.y > ty1) continue;
+      if (this.hide && this.hide.has(a.id)) continue;
       if (view && a.owner !== this.me && !view.visible.has(a.y * g.width + a.x)) continue;
       const k = a.x + ',' + a.y; if (!seen.has(k)) seen.set(k, []); seen.get(k).push(a);
     }

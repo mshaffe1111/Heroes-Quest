@@ -2,12 +2,13 @@
 // Each doctrine a realm already owns makes its next purchase 25% dearer (base × 1.25^owned, to the nearest 5 gold). The computer realms buy under the same rules.
 // Owned doctrines live in rules.docs (Map realmId -> Set of keys), so the pure rule functions, which only receive `rules`, can ask about an army's owner.
 // Prices and the "foot" list are PLACEHOLDERS to tune with play.
-import { ARMIES, priceOf } from './armies.js';
+import { ARMIES, priceOf, signatureBuildTurnsBonus } from './armies.js';
 import { stat, spent } from './stats.js';
+import { emit } from './events.js';
 
 export const DOCTRINES = {
   drilled:   { name: 'Drilled Ranks',  group: 'Army',          base: 400, text: 'Armies become Seasoned after 3 duels won instead of 4.' },
-  hospitals: { name: 'Field Hospitals', group: 'Army',         base: 350, text: 'Armies in your cities heal 3 pips a turn instead of 2.' },
+  hospitals: { name: 'Field Hospitals', group: 'Army',         base: 350, text: 'Armies in your cities heal 2 pips a turn instead of 1.' },
   march:     { name: 'Long March',     group: 'Army',          base: 450, text: 'Foot armies get 2 more move points.' },
   line:      { name: 'Hold the Line',  group: 'Army',          base: 500, text: 'A stack defending in the open gets its camp bonus at once, not after a full turn.' },
   call:      { name: "Hero's Call",    group: 'Heroes',        base: 400, text: 'Hiring a hero costs 40% less.' },
@@ -41,6 +42,7 @@ export function buyDoctrine(g, realmId, key) {
   if (!g.rules.docs.has(realmId)) g.rules.docs.set(realmId, new Set());
   g.rules.docs.get(realmId).add(key);
   const log = g.stats?.realms.get(realmId)?.doctrines; if (log) log.push({ key, turn: g.turn, price });
+  emit(() => ({ t: 'doctrine', realm: realmId, key, name: d.name, price }));
   return { ok: true, price, key };
 }
 export const canBuyDoctrine = (g, realmId, key) => !hasDoctrine(g.rules, realmId, key) && g.realms.get(realmId).gold >= doctrinePrice(g, realmId, key);
@@ -49,7 +51,7 @@ export const canBuyDoctrine = (g, realmId, key) => !hasDoctrine(g.rules, realmId
 /** Turns a city needs to finish this army type for this realm (Quick Muster takes a turn off cheap armies; never below one). */
 export function buildTurns(rules, realmId, def) {
   const cheap = hasDoctrine(rules, realmId, 'muster') && priceOf(def, rules) <= DOCTRINE_NUMBERS.musterMaxPrice;
-  return Math.max(1, def.build - (cheap ? 1 : 0));
+  return Math.max(1, def.build - (cheap ? 1 : 0) - signatureBuildTurnsBonus(realmId, def.key));     // signature hook: 0 until the perk is designed
 }
 export const footBonus = (rules, a) => (hasDoctrine(rules, a.owner, 'march') && FOOT.has(a.type) ? DOCTRINE_NUMBERS.march : 0);
 export const cityHealOf = (rules, realmId) => rules.cityHeal + (hasDoctrine(rules, realmId, 'hospitals') ? DOCTRINE_NUMBERS.heal : 0);

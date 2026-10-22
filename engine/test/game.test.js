@@ -156,7 +156,7 @@ test('taking a defended city: win, then choose; occupy keeps the city and its pr
   assert.deepEqual(g.cities.get('cx').production, ['hinf', 'pike', 'hcav']);
   assert.equal(att.x, 2);
 });
-test('pillage and sack give gold and damage production; raze burns the city', () => {
+test('capture follows the approved screen: pillage keeps every kind, sack loses its dearest kind for more gold, raze pays a purse and burns it', () => {
   const run = (choice) => {
     const g = world();
     E.addCity(g, { id: 'cx', x: 2, y: 1, owner: 'B', income: 10, production: ['hinf', 'pike', 'hcav'] });
@@ -167,12 +167,29 @@ test('pillage and sack give gold and damage production; raze burns the city', ()
     const res = E.resolveCapture(g, choice);
     return { g, res, city: g.cities.get('cx') };
   };
+  const o = run('occupy');
+  assert.equal(o.res.gold, 0); assert.deepEqual(o.city.production, ['hinf', 'pike', 'hcav']); assert.equal(o.city.owner, 'A');
   const p = run('pillage');
-  assert.equal(p.res.gold, 80); assert.equal(p.city.production.length, 2); assert.equal(p.city.owner, 'A');
+  assert.equal(p.res.gold, 80); assert.deepEqual(p.city.production, ['hinf', 'pike', 'hcav']); assert.equal(p.city.owner, 'A');     // income x 8, nothing lost
   const s = run('sack');
-  assert.equal(s.res.gold, 120); assert.equal(s.city.production.length, 0);
+  assert.equal(s.res.gold, 80 + 120); assert.deepEqual(s.city.production, ['hinf', 'pike']); assert.equal(s.city.owner, 'A');      // + half of Heavy Cavalry's teaching cost (8 x 3 x 10 / 2)
   const z = run('raze');
-  assert.equal(z.city.razed, true); assert.equal(z.city.owner, null);
+  assert.equal(z.res.gold, 40); assert.equal(z.city.razed, true); assert.equal(z.city.owner, null); assert.deepEqual(z.city.production, []);   // income x 4
+  assert.ok(s.res.gold > p.res.gold && p.res.gold > z.res.gold && z.res.gold > o.res.gold);
+});
+test('capture outcomes: the screen example (14 gold, 3 kinds) and a city that builds nothing is never worth sacking', () => {
+  const rules = E.makeRules();
+  const out = E.captureOutcomes({ income: 14, production: ['linf', 'hinf', 'hcav'] }, rules);
+  assert.deepEqual([out.occupy.gold, out.pillage.gold, out.sack.gold, out.raze.gold], [0, 112, 232, 56]);   // the mock-up shows +0 / +120 / +260 / +60
+  assert.equal(out.sack.kindLost, 'hcav'); assert.deepEqual(out.sack.kinds, ['linf', 'hinf']); assert.equal(out.pillage.kinds.length, 3);
+  const empty = E.captureOutcomes({ income: 20, production: [] }, rules);
+  assert.ok(empty.sack.gold <= empty.pillage.gold); assert.equal(empty.sack.kindLost, null);
+  const bare = E.captureOutcomes({ income: 20, production: [] }, E.makeRules({ sackGoldPerIncome: 30 }));     // even with a bigger sack multiplier
+  assert.ok(bare.sack.gold <= bare.pillage.gold);
+  // loot follows what is destroyed: a city that loses Griffins gives more than one that loses Light Infantry
+  const rich = E.captureOutcomes({ income: 14, production: ['linf', 'grif'] }, rules).sack.gold;
+  const poor = E.captureOutcomes({ income: 14, production: ['linf'] }, rules).sack.gold;
+  assert.ok(rich > poor);
 });
 test('later-sequel add-on: a razed city can be rebuilt for 800 gp by an army standing there', () => {
   const g = world();
@@ -196,14 +213,22 @@ test('city defence bonus: player +1 (1-2 types) / +2 (3-4); neutral +1 (3-4) / 0
 });
 
 // ---- heroes -----------------------------------------------------------------------------
-test('heroes level up at 15, 30 and 60 XP; each level adds 1 strength and 2 move; max level 4', () => {
+test('heroes level up to 9; levels 2-4 at 15, 30 and 60 XP as before, later levels need much more; strength grows slowly after level 4', () => {
   const g = world();
   const h = E.addArmy(g, 'hero', 'A', 1, 1);
   assert.equal(E.heroStrength(h, g.rules), 5); assert.equal(E.heroMove(h, g.rules), 14);
   E.grantXp(h, 15, g.rules); assert.equal(h.level, 2);
   E.grantXp(h, 15, g.rules); assert.equal(h.level, 3);
-  E.grantXp(h, 100, g.rules); assert.equal(h.level, 4);
-  assert.equal(E.heroStrength(h, g.rules), 8); assert.equal(E.heroMove(h, g.rules), 20);
+  E.grantXp(h, 30, g.rules); assert.equal(h.level, 4);
+  assert.equal(E.heroStrength(h, g.rules), 8); assert.equal(E.heroMove(h, g.rules), 20);      // today's curve, unchanged to level 4
+  const t = g.rules.heroXpThresholds; assert.equal(t.length, 9); assert.equal(g.rules.heroMaxLevel, 9);
+  for (let i = 2; i < t.length; i++) assert.ok(t[i] - t[i - 1] >= t[i - 1] - t[i - 2], 'each level needs at least as much more xp as the one before');
+  assert.equal(E.xpForNextLevel(h, g.rules), t[4]);
+  E.grantXp(h, 10000, g.rules); assert.equal(h.level, 9); assert.equal(E.xpForNextLevel(h, g.rules), null);
+  assert.equal(h.perkPoints, 8);                                                             // one perk choice for every level gained
+  // strength never grows faster than today's +1 a level, and stays within the cap
+  let prev = 0; for (let l = 1; l <= 9; l++) { const s = E.heroLevelStrength(l, g.rules); assert.ok(s - prev <= 1 || l === 1); assert.ok(s <= g.rules.maxBaseStrength); prev = s; }
+  assert.equal(E.heroStrength(h, g.rules), 9);
 });
 test('hero limit is 5, or 6 if you hold more than half the cities', () => {
   const g = world();
@@ -235,7 +260,7 @@ test('combat advisor: sensible odds, and the same answer every time for the same
   assert.ok(o1.winChance > 0.95);
 });
 
-test('a city may hold 32 armies, but only 8 can move or attack together', () => {
+test('only 8 armies can move or attack together', () => {
   const g = world();
   E.addCity(g, { id: 'c1', x: 1, y: 1, owner: 'A' });
   const ids = Array.from({ length: 9 }, () => E.addArmy(g, 'scout', 'A', 1, 1).id);

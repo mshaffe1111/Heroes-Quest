@@ -9,6 +9,7 @@ import { isRoughGround, isSea, isLandingKind } from './terrain.js';
 import { dropDeadHeroItems, speedMultiplier, heroTax, makeItem } from './items.js';
 import { questKills, questCapture, checkQuest } from './quests.js';
 import { revealAround, refreshFog, sightOf } from './fog.js';
+import { emit, isRecording as recordingNow } from './events.js';
 import { newTurnOrders, statusFrom as statusOf } from './orders.js';
 import { hasDoctrine, buildTurns, cityHealOf, heroPriceFor, battleXpFor, taxFor } from './doctrines.js';
 import { blankStats, openLedger, stat, earned, spent, logBattle, closeRound } from './stats.js';
@@ -50,7 +51,7 @@ export function addRealm(g, { id, name = id, gold = g.rules.startGold, human = f
   return realm;
 }
 export function addCity(g, { id, name = id, x, y, income = 20, production = [], owner = null }) {
-  for (const t of production) { const err = validateProductionType(t); if (err) throw new Error(`${id}: ${t}: ${err}`); }
+  for (const t of production) { const err = validateProductionType(t, owner); if (err) throw new Error(`${id}: ${t}: ${err}`); }
   if (production.length > 4) throw new Error('a city holds at most 4 army types');
   const city = { id, name, x, y, income, production: [...production], owner, building: null, vector: null, razed: false };
   g.cities.set(id, city);
@@ -132,6 +133,7 @@ export function embark(g, ids) {
   if (!isEmbarkPoint(g, armies[0].x, armies[0].y)) return { ok: false, reason: 'not-an-embarkation-point' };
   armies.forEach((a) => { a.afloat = true; a.mp = 0; });
   clearDefend(armies);
+  emit(() => ({ t: 'embark', realm: armies[0].owner, ids: ids.slice(), types: armies.map((a) => a.type), at: [armies[0].x, armies[0].y] }));
   return { ok: true };
 }
 /** Step off the boats without moving (on a city, port or bridge square). The move stops. */
@@ -140,6 +142,7 @@ export function disembark(g, ids) {
   if (!armies.every((a) => a.afloat)) return { ok: false, reason: 'not-afloat' };
   if (!isEmbarkPoint(g, armies[0].x, armies[0].y)) return { ok: false, reason: 'not-a-disembarkation-point' };
   armies.forEach((a) => { a.afloat = false; a.mp = 0; });
+  emit(() => ({ t: 'disembark', realm: armies[0].owner, ids: ids.slice(), types: armies.map((a) => a.type), at: [armies[0].x, armies[0].y] }));
   return { ok: true };
 }
 
@@ -174,6 +177,7 @@ export function moveGroup(g, ids, x, y) {
   if (landing) armies.forEach((a) => { a.afloat = false; a.mp = 0; });      // coming ashore ends the move
   else if (groupCanFly(armies)) armies.forEach((a) => { a.afloat = false; });  // flyers never need a boat
   if (g.rules.fog) revealAround(g, owner, x, y, Math.max(...armies.map(sightOf)));
+  emit(() => ({ t: 'move', realm: owner, ids: ids.slice(), types: armies.map((a) => a.type), from: [from.x, from.y], to: [x, y], afloat: !!armies[0].afloat, landed: landing }));
   return { ok: true, cost, landed: landing };
 }
 
@@ -193,8 +197,15 @@ function removeArmies(g, list) { list.forEach((a) => g.armies.delete(a.id)); }
 /** A dead hero's items drop on the square where he fell; in open water they are lost. */
 function heroDeaths(g, dead, x, y, atSea) { for (const a of dead) if (isHero(a)) dropDeadHeroItems(g, a, x, y, atSea); }
 function placeQuestAlly(g, realmId, done) {
+  if (done.hero) {     // a quest reward hero: on the questing hero's square, else in one of the realm's cities with room; no room or at the hero limit: gold instead
+    const spot = done.hero.x != null ? done.hero : null;
+    const h = (spot && joinHero(g, realmId, spot.x, spot.y)) || joinHeroInCity(g, realmId);
+    if (h) { done.heroJoined = h.id; g.events.push({ type: 'hero-joined', army: h.id, name: h.name, from: 'quest' }); }
+    else { g.realms.get(realmId).gold += 300; earned(g, realmId, 300); done.heroPaidAsGold = 300; }     // PLACEHOLDER
+    return;
+  }
   if (!done.ally) return;
-  if (armiesAt(g, done.ally.x, done.ally.y).length < g.rules.stackLimit) addArmy(g, done.ally.type, realmId, done.ally.x, done.ally.y);
+  if (armiesAt(g, done.ally.x, done.ally.y).length < armyLimitAt(g, done.ally.x, done.ally.y)) addArmy(g, done.ally.type, realmId, done.ally.x, done.ally.y);
   else { g.realms.get(realmId).gold += 300; earned(g, realmId, 300); }    // PLACEHOLDER: no room for the ally, so it is paid in gold instead
 }
 
@@ -233,7 +244,11 @@ export function attack(g, ids, x, y, opts = {}) {
   const attacker = groupOf(g, ids)[0]?.owner ?? null;
   const defOwner = armiesAt(g, x, y).find((a) => a.owner !== attacker)?.owner ?? cityAt(g, x, y)?.owner ?? null;
   const city = cityAt(g, x, y); const tile = tileAt(g, x, y);
+  const seen = recordingNow() ? { from: [groupOf(g, ids)[0].x, groupOf(g, ids)[0].y], attTypes: groupOf(g, ids).map((a) => a.type), defTypes: armiesAt(g, x, y).filter((a) => a.owner !== attacker).map((a) => a.type), defIds: armiesAt(g, x, y).filter((a) => a.owner !== attacker).map((a) => a.id), cityId: city?.id ?? null } : null;
   const res = attackCore(g, ids, x, y, opts);
+  if (seen && res.ok) emit(() => ({ t: 'attack', realm: attacker, defender: defOwner, ids: ids.slice(), from: seen.from, at: [x, y], place: city?.name ?? null, cityId: seen.cityId, attTypes: seen.attTypes, defTypes: seen.defTypes, defIds: seen.defIds,
+    winner: res.battle?.winner ?? 'attacker', lostA: res.battle?.dead.attackers.length ?? 0, lostD: res.battle?.dead.defenders.length ?? 0, retreated: !!res.retreated, fled: !!res.battle?.fled, fledTo: res.battle?.fledTo ? [res.battle.fledTo.x, res.battle.fledTo.y] : null,
+    captureNeeded: !!res.captureNeeded, fought: !!res.battle, battle: res.battle ?? null, tile }));
   if (battleHook && res.ok && res.battle) { try { battleHook({ result: res, attacker, defender: defOwner, x, y, place: city?.name ?? null, tile }); } catch { /* a listener must never change a fight */ } }
   return res;
 }
@@ -323,6 +338,7 @@ export function resolveCapture(g, choice) {
   for (const a of survivors) if (isHero(a)) grantXp(a, g.rules.xp.city, g.rules);
   g.pendingCapture = null;
   refreshFog(g, realmId);
+  emit(() => ({ t: 'capture', realm: realmId, prevOwner, cityId: city.id, name: city.name, at: [city.x, city.y], choice, gold, razed: choice === 'raze' }));
   return { gold, city };
 }
 
@@ -378,7 +394,7 @@ export function setProduction(g, cityId, type) {
 export function addProductionType(g, realmId, cityId, type, replace = null) {
   const city = g.cities.get(cityId);
   const realm = g.realms.get(realmId);
-  const err = validateProductionType(type);
+  const err = validateProductionType(type, realmId);
   if (err) return { ok: false, reason: err };
   if (city.owner !== realmId) return { ok: false, reason: 'not-your-city' };
   if (city.production.includes(type)) return { ok: false, reason: 'already-builds-it' };
@@ -405,8 +421,11 @@ export function hireHero(g, realmId, cityId, cost, extra = {}) {
   const heroes = [...g.armies.values()].filter((a) => a.owner === realmId && isHero(a)).length;
   if (heroes >= heroLimit(g, realmId)) return { ok: false, reason: 'too-many-heroes' };
   if (realm.gold < cost) return { ok: false, reason: 'not-enough-gold' };
+  if (armiesAt(g, city.x, city.y).length >= g.rules.cityGarrisonLimit) return { ok: false, reason: 'no-room' };     // the city already holds 8
   realm.gold -= cost; spent(g, realmId, cost); stat(g, realmId, 'heroesHired');
-  return { ok: true, hero: addArmy(g, 'hero', realmId, city.x, city.y, extra) };
+  const hero = addArmy(g, 'hero', realmId, city.x, city.y, extra);
+  emit(() => ({ t: 'hero', realm: realmId, cityId, name: hero.name ?? null, at: [city.x, city.y], cost }));
+  return { ok: true, hero };
 }
 
 // ---- hero extras: offers, the Standard, items ------------------------------------------------------------------
@@ -415,13 +434,19 @@ export function heroHireCost(g, realmId) {
   const n = [...g.armies.values()].filter((a) => a.owner === realmId && isHero(a)).length;
   return heroPriceFor(g.rules, realmId, n === 0 ? g.rules.heroHireFirst : g.rules.heroHireBase + g.rules.heroHirePerHero * (n - 1));
 }
-/** Rare in Heroes Quest (1 in 80 a turn), 1 in 6 a turn under classic rules; a hero offers himself for hire if you can pay. The offer lasts that turn. */
+const heroCount = (g, realmId) => { let n = 0; for (const a of g.armies.values()) if (a.owner === realmId && isHero(a)) n++; return n; };
+const citiesWithRoom = (g, realmId) => [...g.cities.values()].filter((c) => c.owner === realmId && !c.razed && armiesAt(g, c.x, c.y).length < g.rules.cityGarrisonLimit);
+/**
+ * Rare in Heroes Quest (1 in 80 a turn), 1 in 6 a turn under classic rules; a hero offers himself for hire. The offer lasts that turn.
+ * The chance is only rolled on a turn the realm could take him: under the hero limit, gold for his price, and a city with room for him.
+ * A turn it could not take him does not use up the chance (Matt, 2026-10-22).
+ */
 function rollHeroOffer(g, realmId) {
   const realm = g.realms.get(realmId); realm.heroOffer = null;
-  const heroes = [...g.armies.values()].filter((a) => a.owner === realmId && isHero(a)).length;
-  const cities = [...g.cities.values()].filter((c) => c.owner === realmId && !c.razed);
-  if (!cities.length || heroes >= heroLimit(g, realmId) || g.rng.next() >= (g.rules.classic ? g.rules.heroOfferChanceClassic : g.rules.heroOfferChance)) return null;
+  if (heroCount(g, realmId) >= heroLimit(g, realmId)) return null;
   const cost = heroHireCost(g, realmId); if (realm.gold < cost) return null;
+  const cities = citiesWithRoom(g, realmId); if (!cities.length) return null;
+  if (g.rng.next() >= (g.rules.classic ? g.rules.heroOfferChanceClassic : g.rules.heroOfferChance)) return null;
   const city = cities[Math.floor(g.rng.next() * cities.length)];
   realm.heroOffer = { cityId: city.id, cost, name: HERO_NAMES[Math.floor(g.rng.next() * HERO_NAMES.length)] };
   return { type: 'hero-offer', ...realm.heroOffer };
@@ -431,6 +456,16 @@ export function acceptHero(g, realmId) {
   const r = hireHero(g, realmId, o.cityId, o.cost, { name: o.name });
   if (r.ok) g.realms.get(realmId).heroOffer = null; return r;
 }
+/** A hero joins the realm for nothing (a ruin or quest reward) on this square. Needs the realm under its hero limit and room on the square. Returns the hero or null. */
+export function joinHero(g, realmId, x, y) {
+  if (!realmId || heroCount(g, realmId) >= heroLimit(g, realmId)) return null;
+  if (armiesAt(g, x, y).length >= armyLimitAt(g, x, y)) return null;
+  return addArmy(g, 'hero', realmId, x, y, { name: HERO_NAMES[Math.floor(g.rng.next() * HERO_NAMES.length)] });
+}
+/** As joinHero, in the realm's first city with room. */
+function joinHeroInCity(g, realmId) { const c = citiesWithRoom(g, realmId)[0]; return c ? joinHero(g, realmId, c.x, c.y) : null; }
+/** Can this realm take one more hero (under its limit)? */
+export const underHeroLimit = (g, realmId) => heroCount(g, realmId) < heroLimit(g, realmId);
 /** The first hero of a realm arrives with the realm Standard. */
 export function giveStandard(g, heroId) { const h = g.armies.get(heroId); const it = makeItem(g, 'standard'); h.items.push(it); return it; }
 
@@ -486,10 +521,13 @@ export function beginTurn(g, realmId) {
     events.push({ type: 'vector-arrived', army: t.army.id, city: target.id });
   }
 
-  // production
+  // production. Out of gold (Matt, 2026-10-22): while the realm's gold is below zero no city starts or finishes an army; the work pauses
+  // where it is and carries on once the realm is back above zero. Nothing deserts, and upkeep is still charged.
+  const inDebt = realm.gold < 0;
   for (const city of g.cities.values()) {
     if (city.owner !== realmId || city.razed || !city.building) continue;
     const def = ARMIES[city.building.type];
+    if (inDebt) { events.push({ type: 'production-stalled', city: city.id, reason: 'debt' }); continue; }
     city.building.progress++;
     if (city.building.progress < buildTurns(g.rules, realmId, def)) continue;
     if (realm.gold < priceOf(def, g.rules)) { events.push({ type: 'production-stalled', city: city.id, reason: 'gold' }); continue; }
@@ -499,7 +537,7 @@ export function beginTurn(g, realmId) {
     }
     realm.gold -= priceOf(def, g.rules); spent(g, realmId, priceOf(def, g.rules)); stat(g, realmId, 'armiesBuilt');
     city.building.progress = 0;
-    const army = addArmy(g, def.key, realmId, vectored ? null : city.x, vectored ? null : city.y);
+    const army = addArmy(g, def.key, realmId, vectored ? null : city.x, vectored ? null : city.y, def.special ? { cityBuilt: true } : {});   // a city-built special (a signature army) pays upkeep
     if (vectored) {
       g.transit.push({ army, owner: realmId, from: city.id, to: city.vector, arrive: g.turn + g.rules.vectorTravelTurns });
       events.push({ type: 'vectored', army: army.id, from: city.id, to: city.vector });

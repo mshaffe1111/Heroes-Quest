@@ -55,7 +55,7 @@ export function openCity(cityId, { list = null, onClose = null } = {}) {
 }
 function addTypeDialog(city, back) {
   const g = S.g; const realm = g.realms.get(S.me); let m;
-  const types = Object.keys(E.ARMIES).filter((t) => E.isBuildableType(t) && !city.production.includes(t)).sort((a, b) => E.ARMIES[a].cost - E.ARMIES[b].cost);
+  const types = Object.keys(E.ARMIES).filter((t) => (E.canRealmBuild ? E.canRealmBuild(city.owner, t) : E.isBuildableType(t)) && !city.production.includes(t)).sort((a, b) => E.ARMIES[a].cost - E.ARMIES[b].cost);
   const full = city.production.length >= 4; let replace = full ? city.production[0] : null;
   const draw = () => {
     const rows = types.map((t) => { const d = E.ARMIES[t]; const cost = E.establishCost(t, g.rules); const ok = realm.gold >= cost;
@@ -115,10 +115,12 @@ export function askCapture(cityId) {
   return new Promise((resolve) => {
     const g = S.g; const city = g.cities.get(cityId); const prev = city.owner; let m;
     const choose = (c) => { m.close(); resolve(c); };
-    const row = (key, title, text) => h('button', { class: 'opt', style: { width: '100%', marginBottom: '8px' }, onclick: () => choose(key) }, h('b', {}, title), h('span', {}, text));
+    const out = E.captureOutcomes ? E.captureOutcomes(city, g.rules) : null; const gp = (k) => (out ? out[k].gold : null);
+    const row = (key, title, text) => h('button', { class: 'opt cap', style: { width: '100%', marginBottom: '8px' }, onclick: () => choose(key) }, h('div', { class: 'caprow' }, h('b', {}, title), gp(key) != null ? h('span', { class: 'capgold' + (gp(key) ? '' : ' none') }, gp(key) ? `+${num(gp(key))} gold` : 'no gold') : null), h('span', {}, text));
+    const lostName = out?.sack.kindLost ? E.ARMIES[out.sack.kindLost].name : null;
     m = openModal(frame([h('div', { class: 'eyebrow' }, 'The gates open'), h('h2', {}, `${city.name} is yours`), h('p', { class: 'sub', style: { margin: '10px 0 16px' } }, `What will you do with the city of ${theRealm(prev)}?`),
       row('occupy', 'Occupy', 'Keep it whole. It pays you its income from next turn and can build for you.'), row('pillage', 'Pillage', 'Take its coffers, keep the city. A lean haul, no ruin.'),
-      row('sack', 'Sack', 'Take its coffers and a lot more, and leave it burning, with a smaller production list.'), row('raze', 'Raze', 'Take what you can carry and burn the rest. The city is gone until someone rebuilds it for 800 gold.')], { width: 560, closeButton: false }), { dismiss: false });
+      row('sack', 'Sack', lostName ? `Take its coffers and a lot more, and leave it burning. It forgets how to build ${lostName}.` : 'Take its coffers and leave it burning. It builds nothing, so there is no more to take.'), row('raze', 'Raze', `Take what you can carry and burn the rest. The city is gone until someone rebuilds it for ${num(g.rules.rebuildRazedCityCost ?? 800)} gold.`)], { width: 560, closeButton: false }), { dismiss: false });
   });
 }
 

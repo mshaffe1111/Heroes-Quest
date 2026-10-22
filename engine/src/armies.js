@@ -59,3 +59,18 @@ export const isBuildableType = (k) => !ARMIES[k].special && ARMIES[k].buildable 
 
 /** What an army costs to build under these rules (classic mode keeps the 90s original prices). */
 export const priceOf = (d, rules) => (rules.classic ? d.classicCost : d.cost);
+
+// ---- signature armies (Matt, 2026-10-22) -------------------------------------------------------------------------------------
+// Each realm has one signature army. A realm starts with its hero and two of them in its capital, and its capital always builds it.
+// A signature army may be a type cities do not normally build (the Ashen Legion's Undead): the owning realm may still build it.
+export const SIGNATURE_ARMIES = {
+  ivory: 'pike', gold: 'hcav', ember: 'dwarf', crimson: 'orc', verdant: 'elf', azure: 'grif', tidewatch: 'lcav', ashen: 'undead',
+};
+export const signatureOf = (realmId) => SIGNATURE_ARMIES[realmId] ?? null;
+/** Can this realm build this type in a city? Ordinary buildable types, plus the realm's own signature army. */
+export const canRealmBuild = (realmId, k) => !!ARMIES[k] && (isBuildableType(k) || (realmId != null && signatureOf(realmId) === k));
+// HOOK (signature perk, to be designed with the combat lab): the HeroIntro mock-up shows e.g. "+1 in forest, and built a turn faster in your
+// cities". No perk is applied yet. When it is designed, put it here and read it from the rules that need it:
+//   build time -> doctrines.js buildTurns (calls signatureBuildTurnsBonus below, which returns 0 today);
+//   strength   -> units.js individualStrength / baseStrength.
+export const signatureBuildTurnsBonus = (realmId, type) => 0;   // HOOK: turns taken off building a realm's own signature army (none yet)

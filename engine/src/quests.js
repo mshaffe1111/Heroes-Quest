@@ -7,7 +7,7 @@ import { stat, earned } from './stats.js';
 // hero; he or his stack must do it as the AGGRESSOR (being attacked never counts). Kinds, from Rules of Engagement:
 //   take-city : occupy or raze one named city          plunder : sack or pillage cities for a sum of gold
 //   slay      : kill one named enemy hero or one kind of special army     kill : destroy 10-25 armies of another realm
-// Reward: gold, a special item, a temple ally, or the location of a stronghold. +10 hero xp. Quest numbers are PLACEHOLDERS.
+// Reward: gold, a special item, a temple ally, the location of a stronghold, or (rarely) a hero who joins. +10 hero xp. Quest numbers are PLACEHOLDERS.
 const between = (rng, [lo, hi]) => lo + Math.floor(rng.next() * (hi - lo + 1));
 /** "a Wizard", "an Elemental", "The Worm", "an Undead". */
 const withArticle = (name) => (/^the /i.test(name) ? name : `${/^[aeiou]/i.test(name) ? 'an' : 'a'} ${name}`);
@@ -39,10 +39,17 @@ export function offerQuest(g, hero) {
   realm.questOffer = q;
   return q;
 }
+/** Is the realm under its hero limit? (game.js heroLimit, worked out here to keep quests.js free of a circular import.) */
+function roomForHero(g, realmId) {
+  const owned = [...g.cities.values()].filter((c) => c.owner === realmId).length;
+  const limit = owned * 2 > g.cities.size ? g.rules.maxHeroesMajority : g.rules.maxHeroes;
+  return [...g.armies.values()].filter((a) => a.owner === realmId && isHero(a)).length < limit;
+}
 function pickReward(g, realmId) {
   const realm = g.realms.get(realmId); const r = g.rng.next();
   const poor = realm.gold < 300;
   if (poor || r < 0.30) return { kind: 'gold', gold: between(g.rng, g.rules.questGold) };
+  if (g.rules.questHeroChance > 0 && roomForHero(g, realmId) && g.rng.next() < g.rules.questHeroChance) return { kind: 'hero' };   // rare: a hero joins (checked again when the quest is done)
   if (r < 0.65) return { kind: 'item', itemKey: itemsOfTier(2, 3)[Math.floor(g.rng.next() * itemsOfTier(2, 3).length)] };
   if (r < 0.85) return { kind: 'ally', type: ['wiz', 'wyrm', 'undead', 'demon', 'elem', 'devil', 'arch', 'drag'][Math.floor(g.rng.next() * 8)] };
   return { kind: 'stronghold' };
@@ -90,6 +97,7 @@ function finish(g, realmId) {
   if (rw.kind === 'gold') { realm.gold += rw.gold; earned(g, realmId, rw.gold); }
   else if (rw.kind === 'item' && hero) hero.items.push(makeItem(g, rw.itemKey));
   else if (rw.kind === 'ally' && hero) out.ally = { type: rw.type, x: hero.x, y: hero.y };       // game.js places it: avoids a circular import
+  else if (rw.kind === 'hero') out.hero = { x: hero?.x ?? null, y: hero?.y ?? null };              // game.js places him (or pays gold if the realm is at its hero limit)
   else if (rw.kind === 'stronghold') { const st = [...g.sites.values()].find((s) => s.stronghold && !s.explored); if (st) { st.revealedTo = [...(st.revealedTo ?? []), realmId]; out.stronghold = { x: st.x, y: st.y }; } }
   g.events.push(out);
   return out;

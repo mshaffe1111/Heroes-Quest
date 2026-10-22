@@ -76,12 +76,12 @@ test('more armies with the hero and a weaker guardian make the one-roll win more
 });
 test('ruin rewards: an item goes to the hero; the guardian can join as a free ally; a sage offers choices', () => {
   let g = world(); E.addSite(g, { x: 5, y: 5, kind: 'ruin', guardian: 'wiz' }); let h = E.addArmy(g, 'hero', 'A', 5, 5);
-  rngFrom(g, 0.0, 0.35, 0.0); assert.equal(E.exploreRuin(g, [h.id]).outcome, 'item'); assert.equal(h.items.length, 1);   // weights 30/30/25/15: 0.35 -> item
+  rngFrom(g, 0.0, 0.35, 0.0); assert.equal(E.exploreRuin(g, [h.id]).outcome, 'item'); assert.equal(h.items.length, 1);   // weights 30/30/25/15/9 (of 109): 0.35 -> item
   g = world(); E.addSite(g, { x: 5, y: 5, kind: 'ruin', guardian: 'wiz' }); h = E.addArmy(g, 'hero', 'A', 5, 5);
   rngFrom(g, 0.0, 0.7); const r = E.exploreRuin(g, [h.id]); assert.equal(r.outcome, 'ally'); assert.equal(E.armiesAt(g, 5, 5).some((a) => a.type === 'wiz'), true);
   assert.equal(E.armyUpkeep(E.armiesAt(g, 5, 5).find((a) => a.type === 'wiz'), g.rules), 0);
   g = world(); E.addSite(g, { x: 5, y: 5, kind: 'ruin', guardian: 'wiz' }); h = E.addArmy(g, 'hero', 'A', 5, 5);
-  rngFrom(g, 0.0, 0.95, 0.5, 0.5); const s = E.exploreRuin(g, [h.id]); assert.equal(s.outcome, 'sage'); assert.ok(s.options.length >= 2);
+  rngFrom(g, 0.0, 0.9, 0.5, 0.5); const s = E.exploreRuin(g, [h.id]); assert.equal(s.outcome, 'sage');      // 0.9 x 109 = 98: sage (85-100); 0.95 is now a hero (100-109) assert.ok(s.options.length >= 2);
   const gold0 = g.realms.get('A').gold; const c = E.resolveSage(g, 0); assert.equal(c.ok, true); assert.equal(g.realms.get('A').gold, gold0 + c.chosen.gold);
 });
 test('a stronghold holds a top-tier item', () => {
@@ -124,7 +124,7 @@ test('plunder quest counts gold from sack and pillage only when the hero is ther
   const g = world(); const h = E.addArmy(g, 'hero', 'A', 10, 7); const e = E.addArmy(g, 'ele', 'A', 10, 7), w = E.addArmy(g, 'ele', 'A', 9, 7);
   g.realms.get('A').quest = { kind: 'plunder', heroId: h.id, goal: 100, text: 'p', reward: { kind: 'gold', gold: 50 }, progress: 0 };
   E.attack(g, [w.id], 10, 6);      // not relevant
-  E.attack(g, [h.id, e.id], 11, 7); E.resolveCapture(g, 'sack');     // 20 income x 12 = 240 >= 100
+  E.attack(g, [h.id, e.id], 11, 7); E.resolveCapture(g, 'sack');     // 20 income x 8 = 160, + half of Light Infantry's teaching cost = 170 >= 100
   assert.equal(g.realms.get('A').quest, null);
 });
 test('kill quest: only armies the hero\'s stack destroys as the attacker count; being attacked does not', () => {

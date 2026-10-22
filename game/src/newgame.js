@@ -14,6 +14,7 @@ const TIPS = ['Only heroes can search ruins. Bring a few armies along: they help
 const SIG = { ivory: 'pike', gold: 'hcav', ember: 'dwarf', crimson: 'orc', verdant: 'elf', azure: 'grif', tidewatch: 'lcav', ashen: 'undead' };
 const PORTRAITS = ['paladin', 'knight', 'ranger', 'barbarian', 'elf_captain', 'dwarf_lord', 'battle_mage', 'sorceress', 'priestess', 'rogue', 'duelist', 'orc_warlord'];
 const HERO_NAMES = ['Aldric', 'Brenna', 'Cassian', 'Dara', 'Edric', 'Fenna', 'Gareth', 'Hilde', 'Ivor', 'Jora', 'Kell', 'Lyra'];
+const UNSWORN = [['normal', 'Normal', 'Each free city holds its weakest army. Easy pickings early on.'], ['strong', 'Strong', 'Each free city holds one of its better armies. Taking them costs something.'], ['active', 'Active', 'As strong, and a free city that beats off an attack raises more defenders, up to five.']];
 const DIFFS = [['easy', 'Easy', 'The computer realms are slow, make mistakes and rarely press you.'], ['medium', 'Medium', 'A fair fight. The realms mostly look after themselves.'], ['hard', 'Hard', 'Sharper odds, bigger armies on the move, and a grudge against you.'], ['expert', 'Expert', 'They press on thin odds and hunt you first. Expect a siege by turn twenty.']];
 
 let titleView = null, titleTimer = null;
@@ -53,12 +54,15 @@ function agoText(t) { if (!t) return ''; const m = Math.round((Date.now() - t) /
 export function showWizard() {
   setScene('newgame');
   stopTitleMap(); const t = root(); t.replaceChildren();
-  const st = { step: 1, realm: 'verdant', heroName: '', shape: 'continent', cities: 60, seed: 1000 + Math.floor(Math.random() * 9000), difficulty: 'medium', fog: false, classic: false };
-  const names = ['Realm', 'Hero', 'World', 'Difficulty']; const ids = ['ivory', 'gold', 'ember', 'crimson', 'verdant', 'azure', 'tidewatch', 'ashen']; const colors = ['white', 'gold', 'orange', 'red', 'green', 'blue', 'cyan', 'black'];
+  const st = { step: 1, realm: 'verdant', heroName: '', shape: 'continent', cities: 60, seed: 1000 + Math.floor(Math.random() * 9000), difficulty: 'medium', fog: false, classic: false, rivals: 7, unsworn: 'strong' };
+  const names = ['Realm', 'Hero', 'World', 'Rivals', 'Difficulty']; const ids = ['ivory', 'gold', 'ember', 'crimson', 'verdant', 'azure', 'tidewatch', 'ashen']; const colors = ['white', 'gold', 'orange', 'red', 'green', 'blue', 'cyan', 'black'];
   const wiz = h('div', { class: 'wiz' }); t.append(wiz);
+  // the rivals: the other realms in an order fixed by the map number, so the same map number always brings the same rivals
+  const rivalIds = () => { const o = ids.filter((id) => id !== st.realm); let x = st.seed * 9301 + 49297; for (let i = o.length - 1; i > 0; i--) { x = (x * 9301 + 49297) % 233280; const j = Math.floor((x / 233280) * (i + 1)); [o[i], o[j]] = [o[j], o[i]]; } return o.slice(0, st.rivals); };
+  const realmIds = () => [st.realm, ...rivalIds()];
   let previewG = null, previewKey = '';
   const draw = () => {
-    const titleOf = ['', 'Choose your realm', 'Name your hero', 'Shape the world', 'How hard a war?'][st.step];
+    const titleOf = ['', 'Choose your realm', 'Name your hero', 'Shape the world', 'Who stands against you?', 'How hard a war?'][st.step];
     const steps = h('div', { class: 'steps' }, names.flatMap((n, i) => { const k = i + 1; const cls = k === st.step ? 'on' : k < st.step ? 'done' : ''; const el = h('div', { class: 'st ' + cls }, h('span', { class: 'dm' }, h('span', {}, k < st.step ? '✓' : k)), n); return i < names.length - 1 ? [el, h('span', { class: 'ln' })] : [el]; }));
     const head = h('div', { class: 'head' }, h('div', {}, h('div', { class: 'eyebrow' }, 'NEW GAME'), h('h2', {}, titleOf)), steps);
     let body;
@@ -69,7 +73,7 @@ export function showWizard() {
       const sig = E.ARMIES[SIG[st.realm]];
       const card = h('div', { class: 'frame rside' }, h('div', { class: 'eyebrow' }, 'You will rule'), h('div', { class: 'rhead' }, crest(colors[idx], 46), h('h3', {}, E.REALMS[idx].name)),
         h('div', { class: 'ep' }, L.epithet), h('p', { class: 'sub' }, L.blurb), h('div', { class: 'sec' }, 'You begin with'),
-        h('div', { class: 'begin2' }, h('div', {}, '◆ ', h('b', {}, 'Your capital castle')), h('div', {}, '◆ ', h('b', {}, 'Your hero'), ', named next'), (E.SIGNATURE ? h('div', {}, '◆ ', h('b', {}, `Two ${sig?.name ?? 'armies'}`), ', the realm’s signature army') : h('div', {}, '◆ ', h('b', {}, 'Three armies'), ` (soon: two ${sig?.name ?? 'signature armies'})`)), h('div', {}, `◆ ${E.makeRules?.().startGold ?? 1000} gold`)),
+        h('div', { class: 'begin2' }, h('div', {}, '◆ ', h('b', {}, 'Your capital castle')), h('div', {}, '◆ ', h('b', {}, 'Your hero'), ', named next'), (E.SIGNATURE_ARMIES ? h('div', {}, '◆ ', h('b', {}, `Two ${sig?.name ?? 'armies'}`), ', the realm’s signature army') : h('div', {}, '◆ ', h('b', {}, 'Three armies'), ` (soon: two ${sig?.name ?? 'signature armies'})`)), h('div', {}, `◆ ${E.makeRules?.().startGold ?? 1000} gold`)),
         h('img', { class: 'rcastle', src: castle?.src ?? '', alt: '' }));
       body = h('div', { class: 'realmstep' }, cards, card);
     } else if (st.step === 2) {
@@ -89,6 +93,12 @@ export function showWizard() {
       body = h('div', { class: 'two' }, h('div', { class: 'frame' }, ...['tl', 'tr', 'bl', 'br'].map((p) => h('i', { class: 'cn ' + p })), cv, h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: '12px' } }, h('div', { style: { font: '700 26px var(--display)', color: '#f3dc9a' } }, info[1]), h('div', { class: 'eyebrow' }, 'MAP ' + st.seed)), h('p', { class: 'sub' }, info[2])),
         h('div', { class: 'frame' }, ...['tl', 'tr', 'bl', 'br'].map((p) => h('i', { class: 'cn ' + p })), h('div', { class: 'sec', style: { marginTop: 0 } }, 'Pick a shape'), shapeBtns, h('div', { class: 'sec' }, 'Cities on the map'), cityBtns, h('div', { class: 'sec' }, 'Map number'), h('div', { style: { display: 'flex', gap: '10px', alignItems: 'center' } }, seedIn, h('button', { class: 'btn sm', onclick: () => { st.seed = 1000 + Math.floor(Math.random() * 9000); draw(); } }, 'Roll'))));
       setTimeout(() => paintPreview(cv), 30);
+    } else if (st.step === 4) {
+      const rivals = rivalIds(); const rbtns = h('div', { class: 'opts', style: { gridTemplateColumns: 'repeat(auto-fit,minmax(96px,1fr))' } }, [1, 2, 3, 4, 5, 6, 7].map((n) => h('button', { class: 'opt' + (st.rivals === n ? ' on' : ''), onclick: () => { st.rivals = n; draw(); } }, h('b', {}, String(n)), h('span', {}, n === 1 ? 'One rival' : n === 7 ? 'Every realm' : `${n} rivals`))));
+      const who = h('div', { class: 'rivals' }, rivals.map((id) => { const i = ids.indexOf(id); return h('div', { class: 'rv' }, crest(colors[i], 40), h('b', {}, E.REALMS[i].name)); }));
+      const un = h('div', { class: 'opts', style: { gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))' } }, UNSWORN.map(([k, n, d]) => h('button', { class: 'opt' + (st.unsworn === k ? ' on' : ''), onclick: () => { st.unsworn = k; draw(); } }, h('b', {}, n), h('span', {}, d))));
+      body = h('div', { style: { maxWidth: '900px', margin: '0 auto' } }, h('div', { class: 'sec', style: { marginTop: 0 } }, 'How many rival realms'), rbtns, h('p', { class: 'sub', style: { margin: '10px 0' } }, 'Fewer rivals leaves more free cities to take. The castles of realms left out of the war start with the Unsworn.'), who,
+        h('div', { class: 'sec' }, 'The Unsworn (free cities)'), un);
     } else {
       const tog = (key, title, text) => { const b = h('button', { class: 'sw' + (st[key] ? ' on' : ''), onclick: () => { st[key] = !st[key]; b.classList.toggle('on', st[key]); } }); return h('div', { class: 'toggle' }, h('div', {}, h('b', {}, title), h('span', {}, text)), b); };
       body = h('div', { style: { maxWidth: '900px', margin: '0 auto' } }, h('div', { class: 'opts', style: { gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))' } }, DIFFS.map(([k, n, d]) => h('button', { class: 'opt' + (st.difficulty === k ? ' on' : ''), onclick: () => { st.difficulty = k; draw(); } }, h('b', {}, n), h('span', {}, d)))),
@@ -96,13 +106,13 @@ export function showWizard() {
         tog('classic', 'Classic rules', 'Classic two-hit duels: every army dies after two hits, no lasting wounds, no counters, no doctrines of rank. Leave this off for the full Heroes Quest.'));
     }
     const foot = h('div', { class: 'foot' }, h('button', { class: 'btn', onclick: () => (st.step === 1 ? showTitle() : (st.step--, draw())) }, st.step === 1 ? 'Back' : 'Back'),
-      st.step < 4 ? h('button', { class: 'btn pri big', onclick: () => { st.step++; draw(); } }, `Next: ${['', 'your hero', 'the world', 'difficulty'][st.step]}`) : h('button', { class: 'btn pri big', onclick: () => begin() }, 'Begin the war'));
+      st.step < 5 ? h('button', { class: 'btn pri big', onclick: () => { st.step++; draw(); } }, `Next: ${['', 'your hero', 'the world', 'your rivals', 'difficulty'][st.step]}`) : h('button', { class: 'btn pri big', onclick: () => begin() }, 'Begin the war'));
     wiz.replaceChildren(head, h('div', { class: 'body' }, body), foot);
   };
   let previewToken = 0, previewPainter = null;
   function paintPreview(cv) {
-    const [W, H] = SIZES[st.cities]; const key = `${st.shape}|${st.seed}|${st.cities}`;
-    if (key !== previewKey) { try { const map = generateMap({ shape: st.shape, seed: st.seed, width: W, height: H, cities: st.cities, realms: 8 }); previewG = E.mapToGame(map).game; previewKey = key; previewPainter = null; } catch (e) { console.warn(e); return; } }
+    const [W, H] = SIZES[st.cities]; const key = `${st.shape}|${st.seed}|${st.cities}|${realmIds().join(',')}`;
+    if (key !== previewKey) { try { const map = generateMap({ shape: st.shape, seed: st.seed, width: W, height: H, cities: st.cities, realms: 8 }); previewG = E.mapToGame(map, { realmIds: realmIds() }).game; previewKey = key; previewPainter = null; } catch (e) { console.warn(e); return; } }
     const g = previewG; const token = ++previewToken;
     const w = 640, hh = Math.round(w * g.height / g.width); cv.width = w; cv.height = hh; cv.style.aspectRatio = `${g.width} / ${g.height}`;
     const cx = cv.getContext('2d'); cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'high';
@@ -112,7 +122,7 @@ export function showWizard() {
     for (let y = 0; y < g.height; y++) for (let xx = 0; xx < g.width; xx++) { const t = E.tileAt(g, xx, y); const k = col[t.terrain] ?? col.open; const i = (y * g.width + xx) * 4; d.data[i] = k[0]; d.data[i + 1] = k[1]; d.data[i + 2] = k[2]; d.data[i + 3] = 255; }
     x.putImageData(d, 0, 0); cx.drawImage(c, 0, 0, w, hh);
     const dots = () => { const sx = w / g.width, sy = hh / g.height;
-      for (const city of g.cities.values()) { const realm = city.owner ? g.realms.get(city.owner) : null; const isMe = city.owner === st.realm && g.map.caps.includes(city.id); cx.fillStyle = realmHex(realm) ?? '#e6dcc0'; const r = realm ? 4 : 2.5; cx.beginPath(); cx.arc((city.x + 0.5) * sx, (city.y + 0.5) * sy, isMe ? 7 : r, 0, 7); cx.fill(); cx.strokeStyle = isMe ? '#fff' : '#0b1320'; cx.lineWidth = isMe ? 2.5 : 1; cx.stroke(); } };
+      for (const city of g.cities.values()) { const realm = city.owner ? g.realms.get(city.owner) : null; const isMe = city.owner === st.realm && g.map.caps[0] === city.id; cx.fillStyle = realmHex(realm) ?? '#e6dcc0'; const r = realm ? 4 : 2.5; cx.beginPath(); cx.arc((city.x + 0.5) * sx, (city.y + 0.5) * sy, isMe ? 7 : r, 0, 7); cx.fill(); cx.strokeStyle = isMe ? '#fff' : '#0b1320'; cx.lineWidth = isMe ? 2.5 : 1; cx.stroke(); } };
     dots();
     if (!S.assets) return;
     const P = previewPainter ?? (previewPainter = new Painter(g, S.assets)); P.chunks.clear();
@@ -126,7 +136,7 @@ export function showWizard() {
   }
   async function begin() {
     const ov = h('div', { class: 'load paint' }, h('div', { class: 'lt' }, 'Painting the world'), h('div', { class: 'ls' }, `${SHAPES.find((x) => x[0] === st.shape)?.[1] ?? ''} · map ${st.seed} · ${st.cities} cities`), h('div', { class: 'lb' }, h('i', { style: { width: '35%', transition: 'width 2s' } })), h('div', { class: 'tip' }, TIPS[st.seed % TIPS.length])); $('#app').append(ov); await sleep(60);
-    try { const g = newGame({ realm: st.realm, heroName: st.heroName || HERO_NAMES[(st.seed + ids.indexOf(st.realm)) % HERO_NAMES.length], shape: st.shape, cities: st.cities, seed: st.seed, difficulty: st.difficulty, fog: st.fog, classic: st.classic, portrait: st.portrait });
+    try { const g = newGame({ realm: st.realm, heroName: st.heroName || HERO_NAMES[(st.seed + ids.indexOf(st.realm)) % HERO_NAMES.length], shape: st.shape, cities: st.cities, seed: st.seed, difficulty: st.difficulty, fog: st.fog, classic: st.classic, portrait: st.portrait, realmIds: realmIds(), neutrals: st.unsworn });
       ov.querySelector('i').style.width = '90%'; await sleep(30); stopTitleMap(); hooks.ready = () => ov.remove(); await enterGame(g); } catch (e) { console.error(e); toast('The world could not be made: ' + e.message, 'bad'); } ov.remove(); hooks.ready = null;
   }
   draw();

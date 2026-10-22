@@ -1,6 +1,6 @@
 import { ARMIES } from './armies.js';
 import { makeItem, itemsOfTier, dropDeadHeroItems } from './items.js';
-import { addArmy, armiesAt } from './game.js';
+import { addArmy, armiesAt, joinHero, underHeroLimit, armyLimitAt } from './game.js';
 import { offerQuest } from './quests.js';
 import { grantXp, isHero, heroStrength } from './units.js';
 import { stat, earned } from './stats.js';
@@ -38,7 +38,11 @@ function pick(rng, weights) {
 }
 const between = (rng, [lo, hi]) => lo + Math.floor(rng.next() * (hi - lo + 1));
 
-/** Search a ruin. Returns { ok, outcome } where outcome is one of: died, gold, item, ally, sage. A sage leaves g.pendingSage to answer. */
+/**
+ * Search a ruin. Returns { ok, outcome } where outcome is one of: died, gold, item, ally, sage, hero. A sage leaves g.pendingSage to answer.
+ * 'hero' (rare, rules.ruinRewardWeights.hero): a hero held captive in the ruin joins the realm for nothing. It is only drawn while the realm is
+ * under its hero limit and the square has room; otherwise the draw is over the other rewards alone.
+ */
 export function exploreRuin(g, ids) {
   const { armies, hero } = heroGroup(g, ids);
   if (!hero) return { ok: false, reason: 'needs-a-hero' };
@@ -53,7 +57,14 @@ export function exploreRuin(g, ids) {
   if (g.rng.next() >= p) { dropDeadHeroItems(g, hero, hero.x, hero.y, false); g.armies.delete(hero.id); stat(g, hero.owner, 'heroesLost'); stat(g, hero.owner, 'armiesLost'); return { ok: true, outcome: 'died', hero: hero.id }; }     // the ruin stays unexplored
   site.explored = true; stat(g, hero.owner, 'ruinsExplored'); grantXp(hero, g.rules.xp.ruin, g.rules);
   if (site.stronghold) { const it = makeItem(g, pick(g.rng, { crown: 2, sunsplitter: 2, staff: 2, wings: 1, hostbanner: 1 })); hero.items.push(it); return { ok: true, outcome: 'item', item: it }; }
-  const kind = pick(g.rng, g.rules.ruinRewardWeights);
+  const weights = { ...g.rules.ruinRewardWeights };
+  if (!underHeroLimit(g, hero.owner) || armiesAt(g, hero.x, hero.y).length >= armyLimitAt(g, hero.x, hero.y)) delete weights.hero;
+  const kind = pick(g.rng, weights);
+  if (kind === 'hero') {
+    const h = joinHero(g, hero.owner, hero.x, hero.y);
+    if (h) return { ok: true, outcome: 'hero', army: h.id, name: h.name };
+    const gold = between(g.rng, g.rules.ruinGold); realm.gold += gold; earned(g, hero.owner, gold); return { ok: true, outcome: 'gold', gold, because: 'no-room-for-hero' };
+  }
   if (kind === 'gold') { const gold = between(g.rng, g.rules.ruinGold); realm.gold += gold; earned(g, hero.owner, gold); return { ok: true, outcome: 'gold', gold }; }
   if (kind === 'item') { const tier = itemsOfTier(1, 2); const it = makeItem(g, tier[Math.floor(g.rng.next() * tier.length)]); hero.items.push(it); return { ok: true, outcome: 'item', item: it }; }
   if (kind === 'ally') {
