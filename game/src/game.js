@@ -266,12 +266,18 @@ async function onTile(t, info) {
   const tile = pin ?? snap ?? t; const x = tile.x, y = tile.y;
   const fogHidden = E.fogOn(g) && !E.isExplored(g, S.me, x, y); if (fogHidden && !S.sel) return;
   const city = E.cityAt(g, x, y); const own = ownAt(x, y); const now = performance.now(); const dbl = now - lastClick.t < 380 && lastClick.x === x && lastClick.y === y; lastClick = { t: now, x, y };
+  // press and hold: select the armies there (or open your city if none stand in it)
+  if (info.hold) { if (own.length) { sfx('select'); selectStack(x, y); } else if (city && city.owner === S.me) D.openCity(city.id); return; }
   if (info.right && S.sel) return preview(x, y);
   if (S.path && S.path.dest.x === x && S.path.dest.y === y) return execute();
   const onSel = S.sel && S.sel.x === x && S.sel.y === y;
+  if (onSel) { if (city && city.owner === S.me) return D.openCity(city.id); return deselect(); }      // tap the selected armies again: inside your city that opens the city
   if (dbl && city && city.owner === S.me) return D.openCity(city.id);
-  if (own.length && !onSel && (own.some(movable) || !S.sel)) { sfx('select'); selectStack(x, y); return; }
-  if (onSel) { if (city && city.owner === S.me && !pin) return D.openCity(city.id); return deselect(); }
+  if (own.length) {
+    const canGo = S.sel && selArmies().some(movable);
+    if (!canGo) { sfx('select'); selectStack(x, y); return; }      // nothing selected (or it cannot move): pick these armies
+    return preview(x, y);                                          // otherwise: march over and join them (hold to pick them instead)
+  }
   if (city && city.owner === S.me && !S.sel) return D.openCity(city.id);
   if (S.sel) return preview(x, y);
   if (city && city.owner !== S.me && E.fogOn(g) && !E.visibleSet(g, S.me).has(E.tileIndex(g, x, y))) {      // FIX (fog): no live garrison/owner for a city out of sight
@@ -298,7 +304,10 @@ function preview(x, y) {
   // FIX (fog): a square the player cannot see is shown as a plain march; the engine's 'attack' flag (and the foe count/realm) would reveal what is hiding there
   const hiddenAttack = last.action === 'attack' && E.fogOn(g) && !E.visibleSet(g, S.me).has(E.tileIndex(g, x, y));
   if (hiddenAttack) { label = when; odds = null; }
-  S.path = { dest: { x, y }, steps: r.steps, from: { x: S.sel.x, y: S.sel.y }, cost: r.cost, extra, turnAt, odds, label, attack: last.action === 'attack' && !hiddenAttack, hiddenAttack };
+  let join = false;
+  if (last.action !== 'attack') { const there = ownAt(x, y).filter((a) => !ids.includes(a.id)); if (there.length) { join = true; const cap = E.armyLimitAt(g, x, y); const cty = E.cityAt(g, x, y); const room = cap - there.length;
+    label = room >= ids.length ? `Join ${there.length} ${there.length === 1 ? 'army' : 'armies'}${cty ? ' in ' + cty.name : ''} · ${when}` : `Full: ${cty ? cty.name : 'that square'} holds ${cap} armies and has ${there.length}. Send ${Math.max(0, room)} at most`; } }
+  S.path = { dest: { x, y }, steps: r.steps, from: { x: S.sel.x, y: S.sel.y }, cost: r.cost, extra, turnAt, odds, label, join, attack: last.action === 'attack' && !hiddenAttack, hiddenAttack };
   S.view.path = S.path; S.view.dirty = true; refresh();
 }
 /** Walk the route turn by turn the way the march really goes: this turn's move points first, then a full turn's worth each turn; taking to
@@ -343,6 +352,7 @@ async function executeInner(p) { const ids = S.sel.ids.slice(); S.busy = true; S
   }
   S.busy = false;
   if (stopped === 'no-move-points' || (!stopped && false)) { const goal = p.steps.filter((s) => s.action !== 'attack').pop(); if (goal && stopped) { ids.forEach((id) => { const a = g.armies.get(id); if (a) a.goal = { x: goal.x, y: goal.y }; }); toast('The armies will keep marching next turn.'); } }
+  else if (stopped === 'stack-limit') toast(`No room: a square or city holds at most ${g.rules.stackLimit} armies. Leave some behind (tap them in the army row) and try again.`, 'bad');
   else if (stopped) toast('The march was stopped: ' + stopped.replaceAll('-', ' ') + '.', 'bad');
   afterMove(ids);
 }
@@ -479,7 +489,9 @@ function renderEnd() {
   const idle = S.g ? waiting().length : 0; const b = $('#endbtn'); b.disabled = S.busy;
   const odds = S.path?.attack && S.path.odds && S.opts.odds && !S.path.odds.empty ? ` · ${Math.round(S.path.odds.winChance * 100)}% to win` : '';
   const tapWord = PHONE.mode === 'desk' ? 'Click' : 'Tap';
-  $('#msg').textContent = S.path ? `${S.path.attack ? '' : 'March: '}${S.path.label}${odds}. ${tapWord} the square again to confirm.` : S.sel ? `Selected: ${selArmies().length} ${selArmies().length === 1 ? 'army' : 'armies'}${E.cityAt(S.g, S.sel.x, S.sel.y) ? ' in ' + E.cityAt(S.g, S.sel.x, S.sel.y).name : ''}.` : idle ? `${idle} ${idle === 1 ? 'army is' : 'armies are'} waiting for orders.` : 'Every army has its orders.';
+  const inCity = S.sel && E.cityAt(S.g, S.sel.x, S.sel.y); const myCity = inCity && inCity.owner === S.me;
+  $('#msg').textContent = S.path ? `${S.path.attack ? '' : S.path.join ? '' : 'March: '}${S.path.label}${odds}. ${tapWord} the square again to confirm${S.path.join ? ' · hold to pick them instead' : ''}.` :
+    S.sel && myCity ? `Selected: ${selArmies().length} ${selArmies().length === 1 ? 'army' : 'armies'} in ${inCity.name}. ${tapWord} them again to open the city.` : S.sel ? `Selected: ${selArmies().length} ${selArmies().length === 1 ? 'army' : 'armies'}${E.cityAt(S.g, S.sel.x, S.sel.y) ? ' in ' + E.cityAt(S.g, S.sel.x, S.sel.y).name : ''}.` : idle ? `${idle} ${idle === 1 ? 'army is' : 'armies are'} waiting for orders.` : 'Every army has its orders.';
 }
 
 // ======================================================================================================================

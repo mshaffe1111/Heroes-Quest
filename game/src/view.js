@@ -61,7 +61,7 @@ export class MapView {
   invalidate() { this.dirty = true; }
   touch() { this.fogDirty = true; this.dirty = true; }
   destroy() { this.dead = true; }
-  pinAt(px, py) { for (const s of this.stackPos ?? []) if (s.px != null && Math.hypot(px - s.px, py - s.py) <= s.D / 2 + 3) return { x: s.x, y: s.y }; return null; }
+  pinAt(px, py) { let best = null, bd = Infinity; for (const s of this.stackPos ?? []) { if (s.px == null) continue; const d = Math.hypot(px - s.px, py - s.py); if (d <= s.D / 2 + 3 && d < bd) { bd = d; best = s; } } return best ? { x: best.x, y: best.y } : null; }      // the nearest medal wins where big medals overlap
   get z() { return this.cam.z; }
   clamp() {
     const c = this.cam, ww = this.g.width * TP * c.z, hh = this.g.height * TP * c.z; const pad = 80;
@@ -76,14 +76,18 @@ export class MapView {
   bind() {
     const cv = this.cv; let drag = null; const pts = new Map(); let pinch = null;
     const pos = (e) => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
-    cv.addEventListener('pointerdown', (e) => { cv.setPointerCapture(e.pointerId); const p = pos(e); pts.set(e.pointerId, p); if (pts.size === 1) drag = { x0: p.x, y0: p.y, cx: this.cam.x, cy: this.cam.y, moved: false, button: e.button }; else { drag = null; const [a, b] = [...pts.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), z: this.cam.z }; } });
+    let holdT = 0;      // press and hold (half a second, without moving): a "hold" tap
+    cv.addEventListener('pointerdown', (e) => { cv.setPointerCapture(e.pointerId); const p = pos(e); pts.set(e.pointerId, p); clearTimeout(holdT);
+      if (pts.size === 1) { drag = { x0: p.x, y0: p.y, cx: this.cam.x, cy: this.cam.y, moved: false, button: e.button, held: false }; const d0 = drag;
+        holdT = setTimeout(() => { if (drag !== d0 || d0.moved || pts.size !== 1) return; d0.held = true; try { navigator.vibrate?.(15); } catch { /* no vibration */ } const t = this.toTile(p.x, p.y); this.onTile(t, { hold: true, px: p.x, py: p.y }); }, 500); }
+      else { drag = null; const [a, b] = [...pts.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), z: this.cam.z }; } });
     cv.addEventListener('pointermove', (e) => {
       const p = pos(e); if (pts.has(e.pointerId)) pts.set(e.pointerId, p);
       if (pinch && pts.size === 2) { const [a, b] = [...pts.values()]; const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2; this.zoomAt(mx, my, pinch.z * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d, true); return; }
-      if (drag) { const dx = p.x - drag.x0, dy = p.y - drag.y0; if (Math.abs(dx) + Math.abs(dy) > 5) drag.moved = true; if (drag.moved) { this.cam.x = drag.cx - dx / this.cam.z; this.cam.y = drag.cy - dy / this.cam.z; this.clamp(); this.dirty = true; } }
+      if (drag) { const dx = p.x - drag.x0, dy = p.y - drag.y0; if (Math.abs(dx) + Math.abs(dy) > (e.pointerType === "touch" ? 10 : 5)) drag.moved = true; if (drag.moved) { this.cam.x = drag.cx - dx / this.cam.z; this.cam.y = drag.cy - dy / this.cam.z; this.clamp(); this.dirty = true; } }
       const t = this.toTile(p.x, p.y); if (!this.hover || this.hover.x !== t.x || this.hover.y !== t.y) { this.hover = t; this.onHover(t); this.dirty = true; }
     });
-    const up = (e) => { const p = pos(e); pts.delete(e.pointerId); if (pts.size < 2) pinch = null; if (drag && !drag.moved && e.type === 'pointerup') { const t = this.toTile(p.x, p.y); this.onTile(t, { right: drag.button === 2, shift: e.shiftKey, px: p.x, py: p.y }); } if (!pts.size) drag = null; };
+    const up = (e) => { const p = pos(e); pts.delete(e.pointerId); if (pts.size < 2) pinch = null; clearTimeout(holdT); if (drag && !drag.moved && !drag.held && e.type === 'pointerup') { const t = this.toTile(p.x, p.y); this.onTile(t, { right: drag.button === 2, shift: e.shiftKey, px: p.x, py: p.y }); } if (!pts.size) drag = null; };
     cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
     cv.addEventListener('contextmenu', (e) => e.preventDefault());
     cv.addEventListener('wheel', (e) => { e.preventDefault(); const p = pos(e); this.zoomAt(p.x, p.y, this.cam.z * Math.exp(-e.deltaY * 0.0014)); }, { passive: false });
@@ -97,7 +101,7 @@ export class MapView {
 
   /** How big an army's medal is on screen: bigger than before (Matt, 22 Oct: hard to see), and bigger again on touch screens. */
   medalSize() { const z = this.cam.z; if (this.coarse == null) { try { this.coarse = matchMedia('(pointer: coarse)').matches; } catch { this.coarse = false; } }
-    return this.coarse ? Math.max(40, Math.min(84, TP * z * 1.3)) : Math.max(32, Math.min(76, TP * z * 1.15)); }
+    return this.coarse ? Math.max(40, Math.min(80, TP * z * 1.18)) : Math.max(32, Math.min(72, TP * z * 1.05)); }
   /** A tap that lands right beside a drawn road (a road cutting the corner of a square looks like it runs through that square): the road square. */
   roadSnap(px, py) {
     const g = this.g, z = this.cam.z; const wx = px / z + this.cam.x, wy = py / z + this.cam.y; const tx = Math.floor(wx / TP), ty = Math.floor(wy / TP);
@@ -282,7 +286,7 @@ export class MapView {
     for (const st of list) {
       const owner = st.arr[0].owner; const realm = owner ? g.realms.get(owner) : null; const ord = E.orderedArmiesAt(g, st.x, st.y, owner);
       const top = E.displayArmy(ord) ?? st.arr[0]; const s = S(st.x, st.y); const inCity = !!E.cityAt(g, st.x, st.y);
-      const px = inCity ? s.x + TP * z * 0.42 : s.x, py = inCity ? s.y + TP * z * 0.34 : s.y - TP * z * 0.02;
+      const px = inCity ? s.x + TP * z * 0.2 : s.x, py = inCity ? s.y + TP * z * 0.22 : s.y - TP * z * 0.02;      // in a city: at the gate, inside its own square
       if (inCity && z < 0.5) continue;
       const afloat = top.afloat; const hex = realmHex(realm); const mc = this.medal(afloat ? 'navy' : top.type, hex);
       ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(px + 2, py + D * 0.46, D * 0.5, D * 0.16, 0, 0, Math.PI * 2); ctx.fill();
