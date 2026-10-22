@@ -9,6 +9,9 @@ export function makeRng(seed = 1) {
   };
   return {
     next,
+    /** The generator's position: save it with a game and setState() it on load to carry on with the same dice. */
+    getState: () => s,
+    setState: (v) => { s = v | 0; },
     /** whole number from 1 to n */
     int: (n) => 1 + Math.floor(next() * n),
     pick: (arr) => arr[Math.floor(next() * arr.length)],
