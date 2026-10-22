@@ -9,6 +9,7 @@ import { isRoughGround, isSea, isLandingKind } from './terrain.js';
 import { dropDeadHeroItems, speedMultiplier, heroTax, makeItem } from './items.js';
 import { questKills, questCapture, checkQuest } from './quests.js';
 import { revealAround, refreshFog, sightOf } from './fog.js';
+import { newTurnOrders, statusFrom as statusOf } from './orders.js';
 import { hasDoctrine, buildTurns, cityHealOf, heroPriceFor, battleXpFor, taxFor } from './doctrines.js';
 import { blankStats, openLedger, stat, earned, spent, logBattle, closeRound } from './stats.js';
 import { cityDefenceBonus, siteDefenceBonus, realmIncome, realmUpkeep, establishCost, validateProductionType,
@@ -97,7 +98,7 @@ function groupOf(g, ids) {
   if (armies.some((a) => a.owner !== first.owner || a.x !== first.x || a.y !== first.y)) throw new Error('group must share owner and square');
   return armies;
 }
-const clearDefend = (armies) => armies.forEach((a) => { a.defending = false; a.camped = false; });
+const clearDefend = (armies) => armies.forEach((a) => { a.defending = false; a.camped = false; a.fortified = false; });
 
 // ---- naval transport (manual ch.8d) -----------------------------------------------------------
 const DIRS8 = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
@@ -337,7 +338,7 @@ export function victor(g) {
 }
 /** Every realm that still has a city or an army. */
 export function liveRealms(g) {
-  return [...g.realms.keys()].filter((r) => [...g.cities.values()].some((c) => c.owner === r) || [...g.armies.values()].some((a) => a.owner === r && a.x != null));
+  return [...g.realms.keys()].filter((r) => !g.realms.get(r).conceded).filter((r) => [...g.cities.values()].some((c) => c.owner === r) || [...g.armies.values()].some((a) => a.owner === r && a.x != null));
 }
 /** End of a round, after every realm has played. */
 export function endRound(g) { neutralTurn(g); closeRound(g, liveRealms(g)); g.turn++; }
@@ -508,6 +509,7 @@ export function beginTurn(g, realmId) {
     if (a.defending) a.camped = true;
   }
   refreshFog(g, realmId);
+  const woke = newTurnOrders(g, realmId); if (woke.length) events.push({ type: 'woke', armies: woke });
   const q = checkQuest(g, realmId); if (q) events.push(q);
   const offer = rollHeroOffer(g, realmId); if (offer) events.push(offer);
   g.events.push(...events);
@@ -515,3 +517,5 @@ export function beginTurn(g, realmId) {
 }
 
 export { groupCanFly };
+/** Is the game over, and why? (victory, conceded or eliminated) */
+export const gameStatus = (g) => statusOf(g, victor, liveRealms);

@@ -6,7 +6,7 @@
 // The Unsworn (owner null) have no counters: their deaths and losses are not tracked, only what is done to them is.
 
 export const STAT_KEYS = ['citiesTaken', 'citiesLost', 'armiesBuilt', 'armiesLost', 'kills', 'battles', 'battlesWon',
-  'goldEarned', 'goldSpent', 'heroesHired', 'heroesLost', 'ruinsExplored', 'questsDone', 'mostCities'];
+  'goldEarned', 'goldSpent', 'heroesHired', 'heroesLost', 'ruinsExplored', 'questsDone', 'mostCities', 'armiesDisbanded'];
 
 export function blankStats() { return { realms: new Map(), series: [], battles: [] }; }
 export function blankRealmStats() { const s = {}; for (const k of STAT_KEYS) s[k] = 0; s.fell = null; s.startGold = 0; s.doctrines = []; return s; }
