@@ -299,8 +299,9 @@ export class MapView {
       const mine = owner === this.me; const selected = this.sel && this.sel.x === st.x && this.sel.y === st.y;
       if (mine && st.arr.every((a) => a.done || a.fortified || a.mp <= 0)) { ctx.fillStyle = 'rgba(8,14,24,0.5)'; ctx.beginPath(); ctx.arc(px, py, D / 2 - 1, 0, Math.PI * 2); ctx.fill(); }
       if (selected) { ctx.save(); ctx.setLineDash([7, 6]); ctx.lineDashOffset = -now * 18; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(px, py, D / 2 + 8, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
-      if (ord.length > 1) { const br = D * 0.27; const bx = px + D * 0.38, by = py - D * 0.38; ctx.fillStyle = '#0b1320'; ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#f3dc9a'; ctx.lineWidth = 1.4; ctx.stroke();
-        ctx.fillStyle = '#fff'; ctx.font = `800 ${br * 1.25}px Inter, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(ord.length), bx, by + 0.5); ctx.textBaseline = 'alphabetic'; }
+      const hideCount = owner !== this.me && st.arr.every((a) => a.fortified);      // a dug-in enemy hides how many it is (Defend, as in the original)
+      if (ord.length > 1 || hideCount) { const br = D * 0.27; const bx = px + D * 0.38, by = py - D * 0.38; ctx.fillStyle = '#0b1320'; ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#f3dc9a'; ctx.lineWidth = 1.4; ctx.stroke();
+        ctx.fillStyle = '#fff'; ctx.font = `800 ${br * 1.25}px Inter, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(hideCount ? '?' : String(ord.length), bx, by + 0.5); ctx.textBaseline = 'alphabetic'; }
       if (mine && st.arr.some((a) => a.fortified)) { ctx.fillStyle = '#f3dc9a'; ctx.font = `700 ${D * 0.3}px Inter`; ctx.textAlign = 'center'; ctx.fillText('F', px - D * 0.42, py - D * 0.3); }
       st.px = px; st.py = py; st.D = D;
     }

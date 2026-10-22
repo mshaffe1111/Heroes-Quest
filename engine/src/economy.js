@@ -27,7 +27,9 @@ export function realmIncome(cities, realmId) {
   return cities.filter((c) => c.owner === realmId).reduce((s, c) => s + cityIncomeOf(c), 0);
 }
 export function realmUpkeep(armies, realmId, rules) {
-  return armies.filter((a) => a.owner === realmId).reduce((s, a) => s + armyUpkeep(a, rules), 0);
+  const mine = armies.filter((a) => a.owner === realmId);
+  const qm = new Set(mine.filter((a) => isHero(a) && a.x != null && a.perks?.includes('quartermaster')).map((a) => a.x + ',' + a.y));      // Quartermaster: half upkeep beside him
+  return mine.reduce((s, a) => s + (qm.size && a.x != null && qm.has(a.x + ',' + a.y) ? Math.floor(armyUpkeep(a, rules) / 2) : armyUpkeep(a, rules)), 0);
 }
 
 // ---- production --------------------------------------------------------------

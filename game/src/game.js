@@ -64,7 +64,7 @@ function skeleton() {
         cmd('next', 'Next army', 'N', () => nextArmy(), 'cmdnext', 'Next'), cmd('fortify', 'Fortify', 'F', () => order('fortify'), 'cmdfort'), cmd('done', 'Done', 'D', () => order('done'), 'cmddone'), cmd('wake', 'Wake', 'W', () => order('wake'), 'cmdwake'),
         cmd('city', 'Open city', 'Enter', openHere, 'cmdcity', 'City'), cmd('list', 'Your cities', '', () => D.openCities(), 'cmdcities', 'Cities'), cmd('disband', 'Disband', 'Del', () => order('disband'), 'cmddisband'), cmd('centre', 'Centre', 'C', () => centreSel(), 'cmdcentre'),
         cmd('zoomin', 'Zoom in', '+', () => zoom(1.25), null, 'Zoom in', false), cmd('zoomout', 'Zoom out', '−', () => zoom(0.8), null, 'Zoom out', false), cmd('map', 'Whole map', 'M', () => S.view.fit(), 'cmdmap', 'Map'), cmd('scroll', 'Reports', '', () => D.openRealms(), 'cmdrep'),
-        cmd('hero', 'Hero', '', () => nextHero(), 'cmdhero'), cmd('ruin', 'Search', 'S', () => searchHere(), 'cmdsearch'), cmd('search', 'Army info', 'I', () => { const a = selArmies(); if (a.length) armySheet(ownAt(S.sel.x, S.sel.y), a[0].id); else toast('Select an army first.'); }, 'cmdinfo', 'Info')),
+        cmd('hero', 'Hero', '', () => nextHero(), 'cmdhero'), cmd('ruin', 'Search', 'S', () => searchHere(), 'cmdsearch'), cmd('close', 'Deselect', 'Esc', () => deselect(), 'cmddesel'), cmd('search', 'Army info', 'I', () => { const a = selArmies(); if (a.length) armySheet(ownAt(S.sel.x, S.sel.y), a[0].id); else toast('Select an army first.'); }, 'cmdinfo', 'Info')),
       h('div', { id: 'panel' }),
       h('div', { id: 'events' }),
       h('div', { id: 'endwrap' }, h('div', { id: 'miniord' }, h('button', { class: 'btn sm', onclick: () => order('fortify') }, 'Fortify'), h('button', { class: 'btn sm', onclick: () => order('done') }, 'Done'), h('button', { class: 'btn sm', onclick: () => nextArmy() }, 'Next'), h('button', { class: 'btn sm', onclick: openHere }, 'City')),
@@ -106,7 +106,7 @@ export async function enterGame(g, { resume = false } = {}) {
   hooks.refresh = refresh; hooks.openCity = D.openCity;
   $('#realmlbl').replaceChildren(crest(colorOf(S.me), 18), realmName(S.me));
   refresh(); hooks.ready?.();
-  if (resume) { selectNextOnStart(); await offers(); return; }
+  if (resume) { selectNextOnStart(); await offers(); await levelUps(); return; }
   await startTurn();
 }
 function leaveGame() { document.body.classList.remove('ingame'); S.view?.destroy(); S.view = null; $('#game').classList.add('hidden'); closeAllModals(); S.g = null; }
@@ -137,7 +137,7 @@ async function startTurn() {
   const idleCities = myCities().filter((c) => !c.building).length; const hasArmies = [...g.armies.values()].some((q) => q.owner === S.me && q.x != null);
   if (!hasArmies && myCities().length) setTimeout(() => toast('You have no armies. Open a city and choose what it builds.', 'bad'), 700);
   else if (idleCities) setTimeout(() => toast(`${idleCities} of your cities ${idleCities === 1 ? 'is' : 'are'} not building anything.`), 1000);
-  await offers();
+  await offers(); await levelUps();
 }
 async function offers() {
   const g = S.g; const realm = g.realms.get(S.me);
@@ -371,7 +371,7 @@ function afterMove(ids) {
   if (!a0) { deselect(); if (S.opts.autoNext) { const n = nextWaiting(null); if (n) { selectStack(n.x, n.y); S.view.centerOn(n.x, n.y); } else selectNextOnStart(); } return; }      // FIX: the attackers all died: still hand the player the next army (or the capital)
   S.sel = { x: a0.x, y: a0.y, ids: ids.filter((id) => S.g.armies.has(id)) }; S.view.sel = { x: a0.x, y: a0.y };
   const site = E.siteAt(S.g, a0.x, a0.y);
-  if (site && !site.explored && selArmies().some(E.isHero) && (site.kind === 'ruin' || site.kind === 'temple' || site.kind === 'library')) { refresh(); setTimeout(() => searchHere(), 250); return; }
+  if (site && !site.explored && selArmies().some(E.isHero) && (site.kind === 'ruin' || site.kind === 'temple' || site.kind === 'library' || (site.kind === 'tower' && !(site.taught ?? []).includes(selArmies().find(E.isHero).id)))) { refresh(); setTimeout(() => searchHere(), 250); return; }
   const left = selArmies().some((a) => movable(a) && !a.goal);
   if (!left && S.opts.autoNext) { const a = nextWaiting(null); if (a) { selectStack(a.x, a.y); S.view.centerOn(a.x, a.y); return; } }
   refresh();
@@ -390,7 +390,7 @@ async function doAttack(ids, x, y) {
     if (c === 'raze') await ruinsDialog(r.city); else await new Promise((done) => D.openCity(r.city.id, { onClose: done }));
   }
   else if (res.attackersWon && !res.battle) toast('The way is clear.');
-  S.view.touch();
+  S.view.touch(); await levelUps();
   const st = E.gameStatus(g); if (st.over) { refresh(); D.openEnd(st); }
 }
 
@@ -482,15 +482,15 @@ function abilities(a) {
 function enemySheet(x, y) {
   const g = S.g; const foes = E.armiesAt(g, x, y).filter((a) => a.owner !== S.me); if (!foes.length) return;
   const owner = foes[0].owner; const ord = E.orderedArmiesAt(g, x, y, owner); const lvl = g.meta?.difficulty ?? 'medium'; const full = lvl === 'easy' || lvl === 'medium';
-  const top = E.displayArmy(ord) ?? ord[ord.length - 1]; const show = full ? ord.slice().reverse() : [top]; const cty = E.cityAt(g, x, y);
+  const top = E.displayArmy(ord) ?? ord[ord.length - 1]; const dug = ord.every((a) => a.fortified); const show = full && !dug ? ord.slice().reverse() : [top]; const cty = E.cityAt(g, x, y);
   let m; const close = () => m.close();
   const card = (a) => { const hero = E.isHero(a); const mx = E.maxPips(a, g.rules), cur = E.pipsOf(a, g.rules);
     const rows = [['Strength', String(E.baseStrength(a, g.rules))], ['Health', `${cur} of ${mx}`], ['Moves', String(E.moveOf(a, g.rules))]]; if (hero) rows.unshift(['Level', String(a.level)]);
     const ab = hero ? [] : abilities(a);
     return h('div', { class: 'acard' + (hero ? ' hero' : '') }, h('div', { class: 'ahead' }, h('img', { src: medalImg(a.afloat ? 'navy' : a.type, a.owner, 96), alt: '' }), h('div', {}, h('b', {}, unitName(a)), h('small', {}, hero ? 'Enemy hero' : 'Army'))),
       h('div', { class: 'arows' }, rows.map(([k, v]) => h('div', {}, h('span', {}, k), h('b', {}, v)))), ab.length ? h('ul', { class: 'aab' }, ab.map((t) => h('li', {}, t))) : null); };
-  m = openModal(frame([h('div', { class: 'eyebrow' }, owner ? realmName(owner) : 'The Unsworn'), h('h2', { style: { fontSize: '24px', margin: '2px 0 4px' } }, `${ord.length} ${ord.length === 1 ? 'army' : 'armies'}${cty ? ' in ' + cty.name : ' here'}`),
-    h('p', { class: 'sub', style: { margin: '0 0 10px' } }, full ? 'Strongest first. They fight weakest first, so the strongest comes last.' : `On ${lvl === 'hard' ? 'Hard' : 'Expert'} you only see the army in front. ${ord.length > 1 ? `${ord.length - 1} more stand behind it.` : ''}`),
+  m = openModal(frame([h('div', { class: 'eyebrow' }, owner ? realmName(owner) : 'The Unsworn'), h('h2', { style: { fontSize: '24px', margin: '2px 0 4px' } }, dug ? `Dug in${cty ? ' at ' + cty.name : ''}` : `${ord.length} ${ord.length === 1 ? 'army' : 'armies'}${cty ? ' in ' + cty.name : ' here'}`),
+    h('p', { class: 'sub', style: { margin: '0 0 10px' } }, dug ? 'They have fortified: you can see the army in front, but not how many stand behind it.' : full ? 'Strongest first. They fight weakest first, so the strongest comes last.' : `On ${lvl === 'hard' ? 'Hard' : 'Expert'} you only see the army in front. ${ord.length > 1 ? `${ord.length - 1} more stand behind it.` : ''}`),
     h('div', { class: 'acards' }, show.map(card)), h('div', { class: 'foot' }, S.sel ? h('button', { class: 'btn', onclick: () => { close(); preview(x, y); } }, 'Plan an attack') : null, h('button', { class: 'btn pri', onclick: close }, 'Close'))], { width: 560, onClose: close, cls: 'sheet' }));
 }
 function armySheet(arm, focusId = null) {
@@ -509,8 +509,15 @@ function armySheet(arm, focusId = null) {
       extra.length ? h('ul', { class: 'aab' }, extra.map((t) => h('li', {}, t))) : h('p', { class: 'sub', style: { margin: '6px 0 0' } }, 'No special abilities.'));
   };
   const order = focusId ? [...arm.filter((a) => a.id === focusId), ...arm.filter((a) => a.id !== focusId)] : arm;
+  // the fight order of this group: who goes in first (the weakest by default). Move armies up or down; heroes may fight anywhere.
+  const fo = h('div', { class: 'fo' }); const drawFo = () => { const ord = E.orderedArmiesAt(g, arm[0].x, arm[0].y, S.me).filter((a) => arm.some((q) => q.id === a.id));
+    const move = (i, d) => { const ids = ord.map((a) => a.id); const j = i + d; if (j < 0 || j >= ids.length) return; [ids[i], ids[j]] = [ids[j], ids[i]]; const realm = g.realms.get(S.me); realm.fightOrder = [...(realm.fightOrder ?? []).filter((id) => !ids.includes(id)), ...ids]; drawFo(); };
+    fo.replaceChildren(...ord.map((a, i) => h('div', { class: 'forow' }, h('span', { class: 'fon' }, ['1st', '2nd', '3rd'][i] ?? `${i + 1}th`), h('img', { src: medalImg(a.type, a.owner, 64), alt: '' }), h('b', {}, unitName(a)),
+      h('button', { class: 'btn sm', 'aria-label': 'Fight earlier', disabled: i === 0, onclick: () => move(i, -1) }, '▲'), h('button', { class: 'btn sm', 'aria-label': 'Fight later', disabled: i === ord.length - 1, onclick: () => move(i, 1) }, '▼')))); };
+  if (arm.length > 1) drawFo();
   m = openModal(frame([h('div', { class: 'eyebrow' }, arm.length === 1 ? 'Army' : `${arm.length} armies here`), h('h2', { style: { fontSize: '24px', margin: '2px 0 10px' } }, arm.length === 1 ? unitName(arm[0]) : 'Who is in this group'), h('div', { class: 'acards' }, order.map(card)),
-    h('div', { class: 'foot' }, h('button', { class: 'btn pri', onclick: close }, 'Close'))], { width: 560, onClose: close, cls: 'sheet' }));
+    arm.length > 1 ? h('div', {}, h('div', { class: 'sec' }, 'Fight order'), h('p', { class: 'sub', style: { margin: '0 0 6px' } }, 'In a battle they step up one at a time, first to last. The last one is the one shown on the map.'), fo) : null,
+    h('div', { class: 'foot' }, h('button', { class: 'btn pri', onclick: close }, 'Close'))].filter(Boolean), { width: 560, onClose: close, cls: 'sheet' }));
 }
 function pipsRow(a) { const mx = E.maxPips(a, S.g.rules), cur = E.pipsOf(a, S.g.rules); return h('div', { class: 'pips' }, Array.from({ length: mx }, (_, i) => h('i', { class: i < cur ? '' : 'w' }))); }
 function renderEnd() {
@@ -569,8 +576,47 @@ async function searchHere() {
     if (!hero) { toast('Only a hero can study at a library.'); return; }
     const r = E.studyLibrary(g, ids); if (!r.ok) { toast(r.reason === 'already-studied' ? `${hero.name ?? 'This hero'} has already studied here.` : 'Nothing to study here.'); return; }
     sfx('chime'); await sceneCard('levelup', 'A library', `${hero.name ?? 'Your hero'} studies`, h('p', { class: 'sub' }, `+${r.xp} experience${r.levels ? ` · now level ${hero.level}` : ''}.`), [['Continue', true, true]]);
-  } else { toast(`The ${what} is sealed. Nothing to find here yet.`); return; }
-  S.view.touch(); refresh(); D.doAutosave();
+  } else if (site.kind === 'tower') { await towerVisit(ids); }
+  else { toast(`The ${what} is sealed. Nothing to find here yet.`); return; }
+  S.view.touch(); refresh(); await levelUps(); D.doAutosave();
+}
+// ---- the hero arc: an ability at every level (board: LevelUp) and from Mage Towers ---------------------------------------------------
+const BEST = { rally: 'Best for any big fight.', charge: 'Best for attacking.', fortifier: 'Best for holding a city or a bridge.', tactician: 'Best against armies that cancel bonuses.', banner: 'Best when the hero fights himself.',
+  tough: 'Best for a hero who leads from the front.', pathfinder: 'Best for long marches and raids.', field_medic: 'Best for a long campaign in the field.', scout: 'Best with fog of war.',
+  siege: 'Best for taking walled cities.', treasure: 'Best for a hero who hunts ruins.', quartermaster: 'Best for a big standing army.', ranger: 'Best in forests and hill country.' };
+const PERK_ICON = { rally: 'flag', charge: 'sword', fortifier: 'shield', tactician: 'eye', banner: 'flag', tough: 'heart', pathfinder: 'boot', field_medic: 'heart', scout: 'eye', siege: 'city', treasure: 'coin', quartermaster: 'coin', ranger: 'boot' };
+function abilityPicker({ img, eyebrow, title, sub, offer, note, cost = 0, gold = Infinity, okLabel = 'Choose', cancel = null }) {
+  return new Promise((resolve) => {
+    let m; let pick = offer[0]; const done = (v) => { resolve(v); m.close(); };
+    const btn = h('button', { class: 'btn pri' }); const setBtn = () => { btn.textContent = `${okLabel} ${E.PERKS[pick]?.name ?? ''}${cost ? ` · ${num(cost)} gold` : ''}`; btn.disabled = cost > gold; };
+    const cards = h('div', { class: 'perks' }, offer.map((k) => h('button', { class: 'perk' + (k === pick ? ' on' : ''), 'data-k': k, onclick: (e) => { pick = k; cards.querySelectorAll('.perk').forEach((c) => c.classList.toggle('on', c.dataset.k === k)); setBtn(); } },
+      h('div', { class: 'ph' }, h('img', { src: `play/assets/ui/icons/${PERK_ICON[k] ?? 'crown'}.svg`, alt: '' }), h('b', {}, E.PERKS[k]?.name ?? k)), h('p', {}, E.PERKS[k]?.text ?? ''), h('em', {}, BEST[k] ?? ''))));
+    btn.onclick = () => done(pick); setBtn();
+    m = openModal(frame([h('img', { class: 'scene', src: `play/assets/scenes/${img}.webp`, alt: '' }), h('div', { class: 'eyebrow' }, eyebrow), h('h2', { style: { fontSize: '26px', margin: '4px 0 4px' } }, title), sub ? h('p', { class: 'sub', style: { margin: '0 0 10px' } }, sub) : null, cards,
+      note ? h('p', { class: 'note' }, note) : null, h('div', { class: 'foot' }, cancel ? h('button', { class: 'btn', onclick: () => done(null) }, cancel) : null, btn)].filter(Boolean), { width: 760, closeButton: !!cancel, onClose: cancel ? () => done(null) : null, cls: 'sheet scenecard levelup' }), { dismiss: !!cancel, onClose: () => resolve(null) });
+  });
+}
+/** Every hero of yours with a level's ability still to choose gets to choose it now. */
+async function levelUps() {
+  const g = S.g; if (!g || g.rules.classic) return;
+  for (const hero of [...g.armies.values()].filter((a) => a.owner === S.me && E.isHero(a) && a.perkPoints > 0)) {
+    while (hero.perkPoints > 0 && g.armies.has(hero.id)) {
+      const o = E.offerPerks(g, hero.id); if (!o.ok) break; sfx('victory');
+      const have = (hero.perks ?? []).map((k) => E.PERKS[k]?.name).filter(Boolean);
+      const key = await abilityPicker({ img: 'levelup', eyebrow: 'Level up', title: `${hero.name ?? 'Your hero'} reaches level ${hero.level - hero.perkPoints + 1}`, sub: 'Choose one ability. The hero keeps it for the rest of the war.', offer: o.offer,
+        note: have.length ? `Already has ${have.join(', ')}. The three offered are ones the hero does not have yet.` : 'The three offered lean toward the hero’s nature.' });
+      E.choosePerk(g, hero.id, key ?? o.offer[0]); toast(`${hero.name ?? 'Your hero'} learns ${E.PERKS[key ?? o.offer[0]]?.name}.`, 'good');
+    }
+  }
+  refresh();
+}
+async function towerVisit(ids) {
+  const g = S.g; const o = E.towerOffer(g, ids); const hero = ids.map((id) => g.armies.get(id)).find((a) => a && E.isHero(a));
+  if (!o.ok) { toast(o.reason === 'needs-a-hero' ? 'Only a hero can learn at a Mage Tower.' : o.reason === 'already-taught' ? `${hero?.name ?? 'This hero'} has already learned here. Another tower can teach more.` : 'The tower has nothing more to teach this hero.'); return; }
+  const gold = g.realms.get(S.me).gold;
+  const key = await abilityPicker({ img: 'sage', eyebrow: 'A Mage Tower', title: 'The masters will teach one ability', sub: `${hero?.name ?? 'Your hero'} may learn one of these for ${num(o.cost)} gold. You have ${num(gold)}.`, offer: o.offer,
+    note: gold < o.cost ? 'You do not have enough gold yet. Come back with more.' : 'Each hero can learn once at each tower.', cost: o.cost, gold, okLabel: 'Learn', cancel: 'Not now' });
+  if (!key) return; const r = E.learnAtTower(g, ids, key); if (r.ok) { sfx('chime'); toast(`${hero?.name ?? 'Your hero'} learns ${E.PERKS[key].name}.`, 'good'); } else toast('The masters refuse: ' + r.reason.replaceAll('-', ' '), 'bad');
 }
 /** The City button: the city your selected armies stand in; otherwise your city nearest the middle of the map view (Next city cycles). */
 function cityButton() {

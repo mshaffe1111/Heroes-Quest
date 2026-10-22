@@ -2,7 +2,8 @@ import { ARMIES } from './armies.js';
 import { makeItem, itemsOfTier, dropDeadHeroItems } from './items.js';
 import { addArmy, armiesAt, joinHero, underHeroLimit, armyLimitAt } from './game.js';
 import { offerQuest } from './quests.js';
-import { grantXp, isHero, heroStrength } from './units.js';
+import { OFFERABLE } from './perks.js';
+import { grantXp, isHero, heroStrength, hasPerk } from './units.js';
 import { stat, earned } from './stats.js';
 
 // Special sites (manual ch.13): ruins, temples, towers, and the library (later-sequel add-on).
@@ -28,7 +29,7 @@ function heroGroup(g, ids) {
 /** A group with a hero on a ruin: the hero faces the guardian on one die roll, helped by every other army in the group. */
 export function ruinWinChance(hero, guardianType, helpers, rules) {
   const gs = ARMIES[guardianType]?.str ?? 4;
-  const p = rules.ruinBaseWin + rules.ruinPerStrength * (heroStrength(hero, rules) - gs) + rules.ruinPerArmy * Math.min(7, helpers);
+  const p = rules.ruinBaseWin + rules.ruinPerStrength * (heroStrength(hero, rules) - gs) + rules.ruinPerArmy * Math.min(7, helpers) + (hasPerk(hero, 'treasure') ? 0.15 : 0);
   return Math.max(rules.ruinWinMin, Math.min(rules.ruinWinMax, p));
 }
 
@@ -104,6 +105,26 @@ export function visitTemple(g, ids) {
   const hero = armies.find(isHero); let quest = null;
   if (hero) quest = offerQuest(g, hero);
   return { ok: true, blessed, quest };
+}
+
+/**
+ * Mage Tower (Heroes Quest, Matt 22 Oct): a hero who visits may learn ONE ability (a perk) for gold (rules.towerCost), chosen from three
+ * he does not have. Each hero can learn once at each tower. The three on offer are fixed per hero and tower, so asking again shows the same.
+ */
+export function towerOffer(g, ids) {
+  const hero = ids.map((id) => g.armies.get(id)).find((a) => a && isHero(a)); if (!hero) return { ok: false, reason: 'needs-a-hero' };
+  const site = siteAt(g, hero.x, hero.y); if (!site || site.kind !== 'tower') return { ok: false, reason: 'not-a-tower' };
+  site.taught ??= []; if (site.taught.includes(hero.id)) return { ok: false, reason: 'already-taught' };
+  site.offers ??= {}; let offer = site.offers[hero.id];
+  if (!offer) { const pool = OFFERABLE.filter((k) => !hasPerk(hero, k)); offer = []; while (offer.length < 3 && pool.length) offer.push(pool.splice(Math.floor(g.rng.next() * pool.length), 1)[0]); site.offers[hero.id] = offer; }
+  if (!offer.length) return { ok: false, reason: 'nothing-left-to-learn' };
+  return { ok: true, heroId: hero.id, offer, cost: g.rules.towerCost ?? 200 };
+}
+export function learnAtTower(g, ids, key) {
+  const r = towerOffer(g, ids); if (!r.ok) return r; if (!r.offer.includes(key)) return { ok: false, reason: 'not-on-offer' };
+  const hero = g.armies.get(r.heroId); const realm = g.realms.get(hero.owner); if (realm.gold < r.cost) return { ok: false, reason: 'not-enough-gold' };
+  realm.gold -= r.cost; hero.perks.push(key); const site = siteAt(g, hero.x, hero.y); site.taught.push(hero.id); delete site.offers[hero.id];
+  return { ok: true, perk: key, cost: r.cost };
 }
 
 /** Library (later-sequel add-on; numbers are placeholders): a hero studies once per library for experience. */

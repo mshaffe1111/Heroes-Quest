@@ -160,7 +160,7 @@ test('hero pips: 4, one more at level 3 and one more at level 6', () => {
   assert.deepEqual([1, 2, 3, 5, 6, 9].map((l) => E.maxPips(h(l), r)), [4, 4, 5, 5, 6, 6]);
 });
 test('a hero who has every perk is offered none, and his spare point is dropped', () => {
-  const g = world(); const h = E.addArmy(g, 'hero', 'A', 1, 1, { perkPoints: 9 });
+  const g = world(); const h = E.addArmy(g, 'hero', 'A', 1, 1, { perkPoints: E.OFFERABLE.length + 1 });      // more points than perks (12 perks since the hero arc)
   let picks = 0; while (E.aiChoosePerk(g, h.id).ok) picks++;
   assert.equal(picks, E.OFFERABLE.length); assert.equal(h.perks.length, E.OFFERABLE.length); assert.equal(new Set(h.perks).size, h.perks.length);
   assert.equal(h.perkPoints, 0); assert.equal(E.offerPerks(g, h.id).ok, false);

@@ -543,3 +543,16 @@ body.pl #cmdwake,body.pp #cmdwake{order:7}body.pl #cmdcities,body.pp #cmdcities{
 .scenecard .scene{display:block;width:calc(100% + 40px);margin:-20px -20px 12px;max-height:34vh;object-fit:cover}
 .odds.big{display:flex;align-items:center;gap:10px;margin-top:6px}.odds.big .bar{flex:1;height:12px}.odds.big b{font:800 22px var(--display);color:var(--gl-hi)}
 #cmdsearch{order:6}
+/* level-up and Mage Tower ability cards (board: LevelUp) */
+.levelup .perks{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.levelup .perk{display:flex;flex-direction:column;gap:6px;text-align:left;padding:12px;border:0;border-radius:3px;cursor:pointer;color:var(--parch);background:linear-gradient(rgba(5,6,8,.35),rgba(5,6,8,.55)),var(--marble);background-size:auto,520px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.8)}
+.levelup .perk.on{box-shadow:inset 0 0 0 2px var(--gl),0 0 12px rgba(230,196,108,.35)}
+.levelup .perk .ph{display:flex;align-items:center;gap:8px}.levelup .perk .ph img{width:18px;height:18px}.levelup .perk b{font:700 15px var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--gl-hi)}
+.levelup .perk p{margin:0;font:500 13.5px/1.4 var(--body)}.levelup .perk em{font:700 12px var(--body);font-style:normal;color:var(--gl)}
+.levelup .note{margin:10px 0 0;padding:8px 10px;background:rgba(5,8,14,.7);font:500 12.5px/1.4 var(--body);color:var(--parch)}
+.fo{display:flex;flex-direction:column;gap:4px}.forow{display:flex;align-items:center;gap:8px;padding:4px 6px;background:rgba(5,8,14,.6)}.forow img{width:30px;height:30px}.forow b{flex:1;font:700 13px var(--body);color:var(--parch)}.forow .fon{width:32px;font:700 11px var(--display);color:var(--gl)}.forow .btn.sm{min-width:38px;min-height:34px;padding:0}
+body.pl #cmddesel,body.pp #cmddesel{order:13}body.pl #cmdsearch,body.pp #cmdsearch{order:6}
+/* scene cards on small screens: the buttons always fit and stay in view */
+.scenecard .foot{position:sticky;bottom:-20px;margin:12px -20px -20px;padding:12px 20px;flex-wrap:wrap;gap:8px;background:linear-gradient(180deg,rgba(40,40,46,.85),rgba(20,20,24,.95));z-index:2}
+.scenecard .foot .btn{flex:1 1 auto;min-height:46px;white-space:normal}
+@media (max-height:520px){.scenecard .scene{max-height:20vh}.levelup .perk p{font-size:12.5px}.levelup .perk{padding:8px 10px}}

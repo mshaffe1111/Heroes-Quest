@@ -14,7 +14,7 @@ export function sideBonus(armies, enemies, ctx) {
   const { rules, letters } = ctx;
   const cancelHero = enemies.some((e) => def(e).cancelHero);
   const cancelNonHero = enemies.some((e) => def(e).cancelNonHero);
-  const cancelCity = enemies.some((e) => def(e).cancelCity);
+  const cancelCity = enemies.some((e) => def(e).cancelCity || (isHero(e) && hasPerk(e, 'siege')));      // a catapult, or a Siege Master leading the attack
   const pool = ctx.seaBattle ? armies.filter((a) => isFlyingArmy(a) || isHero(a)) : armies;
 
   const heroes = pool.filter(isHero);

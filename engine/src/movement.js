@@ -1,5 +1,5 @@
 import { moveLetter, isLandingKind } from './terrain.js';
-import { def, isHero, isFlyingArmy, heroHasFlightItem } from './units.js';
+import { def, isHero, isFlyingArmy, heroHasFlightItem, hasPerk } from './units.js';
 
 /**
  * A group flies only if every non-hero army flies. A hero may ride along with flyers, and a hero
@@ -38,7 +38,7 @@ export function groupMoveCost(armies, tile, rules) {
   let cost = tc[tile.terrain] ?? tc.open;
   const letter = moveLetter(tile);
   // One army with a move bonus lets the whole group pay the open-ground cost.
-  if (letter && armies.some((a) => !isHero(a) && def(a).moveBonus?.includes(letter))) cost = tc.open;
+  if (letter && armies.some((a) => (!isHero(a) && def(a).moveBonus?.includes(letter)) || (isHero(a) && hasPerk(a, 'ranger')))) cost = tc.open;      // a Ranger hero leads his group through woods and hills
   return cost;
 }
 

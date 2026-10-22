@@ -30,6 +30,7 @@ export const DEFAULT_RULES = {
   heroStrengthByLevel: [5, 6, 7, 8, 8, 8, 9, 9, 9],
   heroMoveByLevel: [14, 16, 18, 20, 21, 21, 22, 22, 23],   // PLACEHOLDER: +2 a level to level 4 (today's curve), then +1 at levels 5, 7 and 9
   xp: { battle: 1, city: 2, ruin: 3, blessing: 1, quest: 10 },
+  towerCost: 200,             // PLACEHOLDER (Matt, 22 Oct: towers teach for gold): gold a Mage Tower asks to teach a hero one ability
   campBonus: 1,               // a stack that defends for a full turn gets +1
   // --- naval transport (manual ch.8d) ---
   // Embarking and disembarking each END the group's move (verified). Everything else here is a placeholder.

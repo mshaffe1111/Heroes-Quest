@@ -4,7 +4,7 @@ import { hasPerk, isHero } from './units.js';
  * Hero perks (Heroes Quest). Each level a hero gains earns one perk point. Spending it, the player is offered a shortlist of three perks
  * drawn from the pool below, leaning toward the hero's temperament, and keeps one. Names and effects are our own.
  * Every number here is a PLACEHOLDER (see rules.js for the tunable ones).
- * Heroes reach level 9, so a hero earns up to 8 perk points: exactly the 8 perks offerable today. The shortlist is drawn only from perks he
+ * Heroes reach level 9, so a hero earns up to 8 perk points; with 12 offerable perks (and Mage Towers teaching more) no two heroes end up alike. The shortlist is drawn only from perks he
  * does not have yet, so late picks may offer fewer than three; once none are left, any further point is dropped (offerPerks says 'no-perks-left').
  */
 export const PERKS = {
@@ -17,16 +17,21 @@ export const PERKS = {
   pathfinder: { name: 'Pathfinder',    text: 'The hero moves further each turn, so a stack he leads travels faster.' },
   field_medic:{ name: 'Field Medic',   text: 'Wounded armies in his stack heal a pip every turn, even outside a city.' },
   scout:      { name: 'Scout',         text: 'Sees further across the map when fog of war is on.', needs: 'fog' },
+  // the hero arc (Matt, 22 Oct): more abilities so a hero grows into the most important piece on the board; no magic
+  siege:      { name: 'Siege Master',  text: 'When his group attacks a city, the city\'s walls give its defenders no bonus.' },
+  treasure:   { name: 'Treasure Hunter', text: 'He searches ruins with better odds (+15%).' },
+  quartermaster: { name: 'Quartermaster', text: 'Armies standing with him cost half their upkeep.' },
+  ranger:     { name: 'Ranger',        text: 'His group crosses woods and hills as cheaply as open ground.' },
 };
 /** Perks the engine can honour today (Scout waits for fog of war). */
 export const OFFERABLE = Object.keys(PERKS).filter((k) => !PERKS[k].needs);
 
 /** A hero's temperament leans his shortlist toward a style of play. */
 export const TEMPERAMENTS = {
-  warlord:  { name: 'Warlord',  favours: ['charge', 'banner', 'tough'] },
-  marshal:  { name: 'Marshal',  favours: ['rally', 'tactician', 'fortifier'] },
-  wayfarer: { name: 'Wayfarer', favours: ['pathfinder', 'field_medic', 'scout'] },
-  warden:   { name: 'Warden',   favours: ['fortifier', 'tough', 'field_medic'] },
+  warlord:  { name: 'Warlord',  favours: ['charge', 'banner', 'tough', 'siege'] },
+  marshal:  { name: 'Marshal',  favours: ['rally', 'tactician', 'fortifier', 'quartermaster'] },
+  wayfarer: { name: 'Wayfarer', favours: ['pathfinder', 'field_medic', 'scout', 'ranger', 'treasure'] },
+  warden:   { name: 'Warden',   favours: ['fortifier', 'tough', 'field_medic', 'quartermaster'] },
 };
 const TEMPER_KEYS = Object.keys(TEMPERAMENTS);
 

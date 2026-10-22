@@ -1,6 +1,6 @@
 import { groupCanFly, limitingMovePoints } from './movement.js';
 import { moveLetter, isLandingKind } from './terrain.js';
-import { def, isHero, moveOf } from './units.js';
+import { def, isHero, moveOf, hasPerk } from './units.js';
 import { tileAt, isEmbarkPoint, cityAt, armiesAt } from './game.js';
 import { Heap } from './mapgen/grid.js';
 
@@ -26,7 +26,7 @@ export function routeSearch(g, ids, { through = false, maxCost = Infinity } = {}
   const occ = new Set(); for (const a of g.armies.values()) if (a.x != null && a.owner !== owner) occ.add(a.y * W + a.x);
   const hostile = (x, y) => { const c = cityAt(g, x, y); return (c && c.owner !== owner && !c.razed) || occ.has(y * W + x); };
   // the cost of a square for this group without building arrays per square: the same rules as movement.groupMoveCost
-  const rules = g.rules, tc = rules.terrainCost; const bonus = new Set(); for (const a of real) if (!isHero(a)) for (const l of def(a).moveBonus ?? []) bonus.add(l);
+  const rules = g.rules, tc = rules.terrainCost; const bonus = new Set(); for (const a of real) { if (!isHero(a)) for (const l of def(a).moveBonus ?? []) bonus.add(l); else if (hasPerk(a, 'ranger')) { bonus.add('W'); bonus.add('H'); } }
   const costOf = (t, af) => {
     if (canFly) return rules.flyCost;
     if (af) { if (t.terrain === 'water' && !t.cityId) return t.shore ? tc.shore : tc.sea; return isLandingKind(t) ? rules.landingCost : Infinity; }
