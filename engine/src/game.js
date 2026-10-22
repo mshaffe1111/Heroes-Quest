@@ -27,12 +27,21 @@ export function createGame({ width = 20, height = 20, rules = {}, seed = 1 } = {
 
 // ---- building the world -------------------------------------------------------
 export const inBounds = (g, x, y) => x >= 0 && y >= 0 && x < g.width && y < g.height;
+// A flat array of the same tile objects (g._ta; the underscore keeps it out of saves), so a lookup needs no string key.
+// Anything that replaces a tile object must go through setTile or clear g._ta.
+function tileArray(g) {
+  const a = new Array(g.width * g.height).fill(undefined);
+  for (const [k, v] of g.tiles) { const i = k.indexOf(','); a[+k.slice(i + 1) * g.width + +k.slice(0, i)] = v; }
+  a.n = g.tiles.size; a.src = g.tiles; return (g._ta = a);
+}
 export function tileAt(g, x, y) {
-  if (!inBounds(g, x, y)) return null;
-  return g.tiles.get(key(x, y)) ?? { terrain: 'open' };
+  if (x < 0 || y < 0 || x >= g.width || y >= g.height) return null;
+  const a = g._ta && g._ta.n === g.tiles.size && g._ta.src === g.tiles ? g._ta : tileArray(g);
+  return a[y * g.width + x] ?? { terrain: 'open' };
 }
 export function setTile(g, x, y, props) {
-  g.tiles.set(key(x, y), { ...(g.tiles.get(key(x, y)) ?? { terrain: 'open' }), ...props });
+  const t = { ...(g.tiles.get(key(x, y)) ?? { terrain: 'open' }), ...props }; g.tiles.set(key(x, y), t);
+  if (g._ta) { if (g._ta.n !== g.tiles.size || g._ta.src !== g.tiles) g._ta = null; else g._ta[y * g.width + x] = t; }
 }
 export function addRealm(g, { id, name = id, gold = g.rules.startGold, human = false }) {
   const realm = { id, name, gold, human, fightOrder: [], deficit: false, quest: null, questOffer: null, heroOffer: null };
@@ -147,7 +156,7 @@ export function moveGroup(g, ids, x, y) {
   const city = cityAt(g, x, y);
   const there = armiesAt(g, x, y);
   if (there.some((a) => a.owner !== owner)) return { ok: false, reason: 'enemy-here' };
-  if (city && city.owner !== owner) return { ok: false, reason: 'enemy-city' };
+  if (city && city.owner !== owner && !city.razed) return { ok: false, reason: 'enemy-city' };     // a razed city is open ground: anyone may walk onto the ruin (and rebuild it)
   if (mixedAfloat(armies)) return { ok: false, reason: 'mixed-group' };      // some in boats, some on foot: split the group first
   const cost = groupMoveCost(armies, tile, g.rules);
   if (!Number.isFinite(cost)) {
@@ -468,9 +477,11 @@ export function beginTurn(g, realmId) {
     let target = null;
     if (t.to === 'flag') {
       const f = g.flags.get(realmId);
-      if (f && flagArrivals < g.rules.flagVectorPerTurn && armiesAt(g, f.x, f.y).length < g.rules.stackLimit) { flagArrivals++; target = { x: f.x, y: f.y, id: 'flag' }; }
+      const here = f ? armiesAt(g, f.x, f.y) : [];
+      if (f && flagArrivals < g.rules.flagVectorPerTurn && here.length < g.rules.stackLimit && here.every((a) => a.owner === realmId)) { flagArrivals++; target = { x: f.x, y: f.y, id: 'flag' }; }     // never onto an enemy holding the flag square
     } else { const dest = g.cities.get(t.to); target = dest && dest.owner === realmId && !dest.razed ? dest : null; }
-    if (!target && home?.owner === realmId) target = home;
+    if (!target && home?.owner === realmId && !home.razed) target = home;
+    if (target && target.id !== 'flag' && armiesAt(g, target.x, target.y).length >= g.rules.cityGarrisonLimit) { t.arrive = g.turn + 1; g.transit.push(t); continue; }    // the garrison is full: wait on the road a turn
     if (!target) { g.armies.delete(t.army.id); stat(g, realmId, 'armiesLost'); events.push({ type: 'vector-lost', army: t.army.id }); continue; }
     placeArmy(g, t.army, target.x, target.y);
     events.push({ type: 'vector-arrived', army: t.army.id, city: target.id });

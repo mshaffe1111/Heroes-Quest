@@ -91,7 +91,7 @@ export function loadGame(data) {
   if (data.version > SAVE_VERSION) return bad('saved-by-a-newer-version');
   let g; try { g = decode(data.game); } catch (e) { return bad('damaged'); }
   if (!g) return bad('damaged');
-  if (data.game.tilesPacked) { try { g.tiles = unpackTiles(g, data.game.tilesPacked); } catch (e) { return bad('damaged'); } }
+  if (data.game.tilesPacked) { try { g.tiles = unpackTiles(g, data.game.tilesPacked); g._ta = null; } catch (e) { return bad('damaged'); } }
   delete g.tilesPacked;
   for (const k of ['realms', 'cities', 'armies', 'tiles', 'rules']) if (!g[k]) return bad('damaged');
   if (!(g.realms instanceof Map) || !(g.armies instanceof Map)) return bad('damaged');

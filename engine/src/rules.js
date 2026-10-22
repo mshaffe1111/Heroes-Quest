@@ -1,8 +1,8 @@
 // Every number the engine uses lives here so it can be changed without touching code.
-// Items marked PLACEHOLDER are not in the the 90s original manual text we have; they are
+// Items marked PLACEHOLDER are not in the 90s original manual text we have; they are
 // reasonable guesses and are listed for Matt to confirm.
 export const DEFAULT_RULES = {
-  // --- verified against the the 90s original manual / encyclopedia ---
+  // --- verified against the 90s original manual / encyclopedia ---
   stackLimit: 8,              // armies per square
   cityGarrisonLimit: 32,      // a city defends with everything inside it, up to 32
   dieSize: 20,                // normal combat

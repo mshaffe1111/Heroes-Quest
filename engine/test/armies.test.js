@@ -20,7 +20,7 @@ test('special armies and navies cannot be built in cities', () => {
   for (const k of ['scout', 'hcav', 'ele', 'cat']) assert.equal(isBuildableType(k), true, k);
 });
 
-test('Heroes Quest prices follow toughness: light armies cost less, big ones more, classic mode keeps the the 90s original prices', async () => {
+test('Heroes Quest prices follow toughness: light armies cost less, big ones more, classic mode keeps the 90s original prices', async () => {
   const { priceOf, makeRules } = await import('../src/index.js');
   const q = makeRules(), c = makeRules({ classic: true });
   assert.ok(priceOf(ARMIES.linf, q) < priceOf(ARMIES.linf, c));

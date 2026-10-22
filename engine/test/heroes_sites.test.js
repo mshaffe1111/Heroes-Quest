@@ -144,13 +144,15 @@ test('a quest whose hero has died is cancelled at the start of the turn', () => 
 });
 
 // ---- hiring heroes and the Standard -------------------------------------------------------------------------------
-test('hero offers: a 1 in 6 chance each turn, only with enough gold and room; accepting hires him at the offered price', () => {
-  const g = world(); E.addArmy(g, 'hero', 'A', 0, 0); rngFrom(g, 0.1, 0.0, 0.0);     // 0.1 < 1/6 -> offer
+test('hero offers: rare (1 in 80 a turn; 1 in 6 under classic rules), only with enough gold and room; accepting hires him at the offered price', () => {
+  const g = world(); E.addArmy(g, 'hero', 'A', 0, 0); rngFrom(g, 0.005, 0.0, 0.0);     // 0.005 < 1/80 -> offer
   const gold0 = g.realms.get('A').gold; const ev = E.beginTurn(g, 'A'); const offer = ev.find((e) => e.type === 'hero-offer'); assert.ok(offer);
   const cost = offer.cost; const after = g.realms.get('A').gold;
   const r = E.acceptHero(g, 'A'); assert.equal(r.ok, true); assert.equal(g.realms.get('A').gold, after - cost);
   const g2 = world(); g2.realms.get('A').gold = 1; E.addArmy(g2, 'hero', 'A', 0, 0); rngFrom(g2, 0.01); assert.equal(E.beginTurn(g2, 'A').some((e) => e.type === 'hero-offer'), false);
   const g3 = world(); E.addArmy(g3, 'hero', 'A', 0, 0); rngFrom(g3, 0.5); assert.equal(E.beginTurn(g3, 'A').some((e) => e.type === 'hero-offer'), false);
+  const g4 = world(); E.addArmy(g4, 'hero', 'A', 0, 0); rngFrom(g4, 0.1); assert.equal(E.beginTurn(g4, 'A').some((e) => e.type === 'hero-offer'), false, '0.1 is no offer at 1 in 80');
+  const g5 = world(); g5.rules.classic = true; E.addArmy(g5, 'hero', 'A', 0, 0); rngFrom(g5, 0.1, 0.0, 0.0); assert.equal(E.beginTurn(g5, 'A').some((e) => e.type === 'hero-offer'), true, 'classic rules keep 1 in 6');
   assert.ok(E.heroHireCost(g, 'A') > E.heroHireCost(world(), 'A'), 'later heroes cost more');
 });
 test('the Standard: +1 command, plantable only on open, road, woods or hills, vectoring reaches it, four armies per turn', () => {

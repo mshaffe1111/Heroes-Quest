@@ -125,7 +125,8 @@ export function resolveBattle({ attackers, defenders, tile, cityBonus = 0, campe
     const s = frontStrengths(att, dfn, bc, { duel: fights.length });
     const a = att[0];
     const d = dfn[0];
-    const r = fightOne(s.a, s.d, rng, die, pipsOf(a, rules), pipsOf(d, rules));
+    const hp = (c) => (rules.classic ? Math.max(1, rules.hitsToKill - (rules.damageCarriesOver ? c.wounded || 0 : 0)) : pipsOf(c, rules));   // classic: two hits, less any taken earlier in this battle
+    const r = fightOne(s.a, s.d, rng, die, hp(a), hp(d));
     fights.push({ attacker: { id: a.id, type: a.type, strength: s.a }, defender: { id: d.id, type: d.type, strength: s.d },
       winner: r.attackerWon ? 'attacker' : 'defender', rounds: r.rounds, stackBonus: { attacker: s.bonusA.total, defender: s.bonusD.total } });
     if (r.attackerWon) {

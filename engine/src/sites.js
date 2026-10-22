@@ -14,7 +14,7 @@ const sk = (x, y) => `${x},${y}`;
 
 export function addSite(g, { x, y, kind, guardian = null, stronghold = false }) {
   g.sites.set(sk(x, y), { x, y, kind, explored: false, guardian, stronghold, blessed: [], studied: [] });
-  const t = g.tiles.get(sk(x, y)) ?? { terrain: 'open' }; g.tiles.set(sk(x, y), { ...t, site: kind });
+  const t = g.tiles.get(sk(x, y)) ?? { terrain: 'open' }; g.tiles.set(sk(x, y), { ...t, site: kind }); g._ta = null;
 }
 export const siteAt = (g, x, y) => g.sites.get(sk(x, y)) ?? null;
 /** Special armies that can guard a ruin or join a hero; `weight` falls as they get stronger. */

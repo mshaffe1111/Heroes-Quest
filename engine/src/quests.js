@@ -9,6 +9,8 @@ import { stat, earned } from './stats.js';
 //   slay      : kill one named enemy hero or one kind of special army     kill : destroy 10-25 armies of another realm
 // Reward: gold, a special item, a temple ally, or the location of a stronghold. +10 hero xp. Quest numbers are PLACEHOLDERS.
 const between = (rng, [lo, hi]) => lo + Math.floor(rng.next() * (hi - lo + 1));
+/** "a Wizard", "an Elemental", "The Worm", "an Undead". */
+const withArticle = (name) => (/^the /i.test(name) ? name : `${/^[aeiou]/i.test(name) ? 'an' : 'a'} ${name}`);
 
 export function offerQuest(g, hero) {
   if (!g.rules.quests) return null;
@@ -25,7 +27,13 @@ export function offerQuest(g, hero) {
   else if (kind === 'slay') {
     const heroes = [...g.armies.values()].filter((a) => isHero(a) && a.owner !== hero.owner && a.owner);
     if (heroes.length && g.rng.next() < 0.5) { const t = heroes[Math.floor(g.rng.next() * heroes.length)]; q.targetHero = t.id; q.text = `Slay the hero ${t.name}`; }
-    else { const sp = Object.values(ARMIES).filter((a) => a.special); const t = sp[Math.floor(g.rng.next() * sp.length)]; q.targetType = t.key; q.text = `Slay a ${t.name}`; }
+    else {
+      // only a kind of special army some other realm actually fields; with none about, fall back to a hero target or a kill quest
+      const sp = [...new Set([...g.armies.values()].filter((a) => a.owner && a.owner !== hero.owner && ARMIES[a.type].special).map((a) => a.type))].map((k) => ARMIES[k]);
+      if (sp.length) { const t = sp[Math.floor(g.rng.next() * sp.length)]; q.targetType = t.key; q.text = `Slay ${withArticle(t.name)}`; }
+      else if (heroes.length) { const t = heroes[Math.floor(g.rng.next() * heroes.length)]; q.targetHero = t.id; q.text = `Slay the hero ${t.name}`; }
+      else { q.kind = 'kill'; q.targetRealm = others[Math.floor(g.rng.next() * others.length)]; q.goal = between(g.rng, g.rules.questKill); q.text = `Destroy ${q.goal} armies of ${g.realms.get(q.targetRealm).name}`; }
+    }
   } else { q.targetRealm = others[Math.floor(g.rng.next() * others.length)]; q.goal = between(g.rng, g.rules.questKill); q.text = `Destroy ${q.goal} armies of ${g.realms.get(q.targetRealm).name}`; }
   q.reward = pickReward(g, hero.owner);
   realm.questOffer = q;
@@ -67,7 +75,9 @@ export function checkQuest(g, realmId) {
   const realm = g.realms.get(realmId); const q = realm.quest; if (!q) return null;
   const hero = g.armies.get(q.heroId);
   const dead = !hero || (q.kind === 'take-city' && (g.cities.get(q.cityId)?.owner === realmId || g.cities.get(q.cityId)?.razed));
-  const gone = q.kind === 'kill' && ![...g.cities.values()].some((c) => c.owner === q.targetRealm) && ![...g.armies.values()].some((a) => a.owner === q.targetRealm);
+  const gone = (q.kind === 'kill' && ![...g.cities.values()].some((c) => c.owner === q.targetRealm) && ![...g.armies.values()].some((a) => a.owner === q.targetRealm))
+    || (q.kind === 'slay' && q.targetHero && !g.armies.has(q.targetHero))                                                     // the target hero fell to someone else
+    || (q.kind === 'slay' && q.targetType && ![...g.armies.values()].some((a) => a.type === q.targetType && a.owner && a.owner !== realmId));   // none of that kind left to slay
   if (dead || gone) { realm.quest = null; return { type: 'quest-impossible', text: q.text }; }
   return null;
 }

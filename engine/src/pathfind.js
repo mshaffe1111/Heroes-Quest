@@ -1,4 +1,6 @@
-import { groupMoveCost, groupCanFly, landsAshore, limitingMovePoints } from './movement.js';
+import { groupCanFly, limitingMovePoints } from './movement.js';
+import { moveLetter, isLandingKind } from './terrain.js';
+import { def, isHero } from './units.js';
 import { tileAt, isEmbarkPoint, cityAt, armiesAt } from './game.js';
 import { Heap } from './mapgen/grid.js';
 
@@ -13,7 +15,6 @@ const D8 = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]
  */
 export function routeSearch(g, ids, { through = false, maxCost = Infinity } = {}) {
   const real = ids.map((id) => g.armies.get(id)); const first = real[0]; const owner = first.owner;
-  const shadow = [0, 1].map((af) => real.map((a) => ({ ...a, afloat: !!af })));
   const canFly = groupCanFly(real);
   const turn = Math.max(1, limitingMovePoints(real.map((a) => ({ ...a, mp: Math.max(a.mp, 1) }))));
   const penalty = turn;      // a landing or an embarkation uses up the rest of the turn
@@ -21,7 +22,17 @@ export function routeSearch(g, ids, { through = false, maxCost = Infinity } = {}
   const dist = new Float64Array(N).fill(Infinity); const prev = new Int32Array(N).fill(-1); const how = new Array(N);
   const id = (x, y, af) => (y * W + x) * 2 + af;
   const heap = new Heap(); const s0 = id(first.x, first.y, first.afloat ? 1 : 0); dist[s0] = 0; heap.push(0, s0);
-  const hostile = (x, y) => { const c = cityAt(g, x, y); return (c && c.owner !== owner && !c.razed) || armiesAt(g, x, y).some((a) => a.owner !== owner); };
+  // who stands where, worked out once per search (armiesAt scans every army, so asking it per square cost squares x armies)
+  const occ = new Set(); for (const a of g.armies.values()) if (a.x != null && a.owner !== owner) occ.add(a.y * W + a.x);
+  const hostile = (x, y) => { const c = cityAt(g, x, y); return (c && c.owner !== owner && !c.razed) || occ.has(y * W + x); };
+  // the cost of a square for this group without building arrays per square: the same rules as movement.groupMoveCost
+  const rules = g.rules, tc = rules.terrainCost; const bonus = new Set(); for (const a of real) if (!isHero(a)) for (const l of def(a).moveBonus ?? []) bonus.add(l);
+  const costOf = (t, af) => {
+    if (canFly) return rules.flyCost;
+    if (af) { if (t.terrain === 'water' && !t.cityId) return t.shore ? tc.shore : tc.sea; return isLandingKind(t) ? rules.landingCost : Infinity; }
+    if (t.bridge) return tc.road; if (t.terrain === 'water' || t.terrain === 'mountain') return Infinity; if (t.cityId) return tc.city; if (t.road) return tc.road;
+    let c = tc[t.terrain] ?? tc.open; const l = moveLetter(t); if (l && bonus.has(l)) c = tc.open; return c;
+  };
   const hostileMemo = new Map(); const isHostile = (x, y) => { const k = y * W + x; let v = hostileMemo.get(k); if (v === undefined) { v = hostile(x, y); hostileMemo.set(k, v); } return v; };
   while (heap.size) {
     const [k, s] = heap.pop(); if (k > dist[s]) continue; if (k > maxCost) break;
@@ -31,8 +42,8 @@ export function routeSearch(g, ids, { through = false, maxCost = Infinity } = {}
     if (!canFly && isEmbarkPoint(g, x, y)) relax(x, y, af ? 0 : 1, penalty, af ? 'disembark' : 'embark');
     for (const [dx, dy] of D8) {
       const nx = x + dx, ny = y + dy; const t = tileAt(g, nx, ny); if (!t) continue;
-      const c = groupMoveCost(shadow[af], t, g.rules); if (!Number.isFinite(c)) continue;
-      const lands = !canFly && landsAshore(shadow[af], t);
+      const c = costOf(t, af); if (!Number.isFinite(c)) continue;
+      const lands = !canFly && af === 1 && t.terrain !== 'water';
       const action = isHostile(nx, ny) ? 'attack' : lands ? 'land' : af && !canFly ? 'sail' : 'move';
       relax(nx, ny, lands ? 0 : af, c + (lands ? penalty : 0), action);
     }
