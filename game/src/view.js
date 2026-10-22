@@ -97,7 +97,7 @@ export class MapView {
 
   /** How big an army's medal is on screen: bigger than before (Matt, 22 Oct: hard to see), and bigger again on touch screens. */
   medalSize() { const z = this.cam.z; if (this.coarse == null) { try { this.coarse = matchMedia('(pointer: coarse)').matches; } catch { this.coarse = false; } }
-    return this.coarse ? Math.max(32, Math.min(72, TP * z * 1.05)) : Math.max(26, Math.min(66, TP * z * 0.95)); }
+    return this.coarse ? Math.max(40, Math.min(84, TP * z * 1.3)) : Math.max(32, Math.min(76, TP * z * 1.15)); }
   /** A tap that lands right beside a drawn road (a road cutting the corner of a square looks like it runs through that square): the road square. */
   roadSnap(px, py) {
     const g = this.g, z = this.cam.z; const wx = px / z + this.cam.x, wy = py / z + this.cam.y; const tx = Math.floor(wx / TP), ty = Math.floor(wy / TP);
@@ -286,6 +286,7 @@ export class MapView {
       if (inCity && z < 0.5) continue;
       const afloat = top.afloat; const hex = realmHex(realm); const mc = this.medal(afloat ? 'navy' : top.type, hex);
       ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(px + 2, py + D * 0.46, D * 0.5, D * 0.16, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(6,10,16,0.75)'; ctx.beginPath(); ctx.arc(px, py, D / 2 + 2.5, 0, Math.PI * 2); ctx.fill();      // a dark rim so the medal stands off the ground
       ctx.drawImage(mc, px - D / 2, py - D / 2, D, D);
       const mine = owner === this.me; const selected = this.sel && this.sel.x === st.x && this.sel.y === st.y;
       if (mine && st.arr.every((a) => a.done || a.fortified || a.mp <= 0)) { ctx.fillStyle = 'rgba(8,14,24,0.5)'; ctx.beginPath(); ctx.arc(px, py, D / 2 - 1, 0, Math.PI * 2); ctx.fill(); }

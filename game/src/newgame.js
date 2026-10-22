@@ -46,8 +46,10 @@ export async function showTitle() {
     h('div', { class: 'trow' }, h('button', { class: 'btn', onclick: () => D.openOptions() }, 'Options'), h('button', { class: 'btn', onclick: () => D.openHelp() }, 'How to play'), h('button', { class: 'btn', onclick: () => D.openCredits() }, 'Credits')));
   t.append(h('img', { class: 'tbg', src: 'play/assets/scenes/title.webp', alt: '' }), h('div', { class: 'tshade' }),
     h('div', { class: 'tleft' }, h('h1', {}, 'Heroes Quest'), h('div', { class: 'tag' }, 'A war for the crown of the broken land'), nav),
-    h('div', { class: 'small' }, D.persistent ? 'Early test build · your saves live in this browser · Created by Matt Shaffer · ' : 'This browser is not letting the game keep saves: they will be lost when you close the page. Use Save to a file. · ', h('a', { href: 'https://github.com/mshaffe1111/Heroes-Quest' }, 'the code is on GitHub')));
+    h('div', { class: 'built' }, builtText()), h('div', { class: 'small' }, D.persistent ? 'Early test build · your saves live in this browser · Created by Matt Shaffer · ' : 'This browser is not letting the game keep saves: they will be lost when you close the page. Use Save to a file. · ', h('a', { href: 'https://github.com/mshaffe1111/Heroes-Quest' }, 'the code is on GitHub')));
 }
+/** When this version of the game was built (stamped by build.mjs), so a fresh push is easy to spot. */
+function builtText() { try { const d = new Date(__BUILT__); return 'Updated ' + d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch { return ''; } }
 function agoText(t) { if (!t) return ''; const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'saved just now' : m < 60 ? `saved ${m} minute${m === 1 ? '' : 's'} ago` : m < 1440 ? `saved ${Math.round(m / 60)} hour${Math.round(m / 60) === 1 ? '' : 's'} ago` : `saved ${new Date(t).toLocaleDateString()}`;
 }
 
@@ -135,6 +137,7 @@ export function showWizard() {
     requestAnimationFrame(step);
   }
   async function begin() {
+    S.goFull?.();      // straight from the tap, while the browser still allows it
     const ov = h('div', { class: 'load paint' }, h('div', { class: 'lt' }, 'Painting the world'), h('div', { class: 'ls' }, `${SHAPES.find((x) => x[0] === st.shape)?.[1] ?? ''} · map ${st.seed} · ${st.cities} cities`), h('div', { class: 'lb' }, h('i', { style: { width: '35%', transition: 'width 2s' } })), h('div', { class: 'tip' }, TIPS[st.seed % TIPS.length])); $('#app').append(ov); await sleep(60);
     try { const g = newGame({ realm: st.realm, heroName: st.heroName || HERO_NAMES[(st.seed + ids.indexOf(st.realm)) % HERO_NAMES.length], shape: st.shape, cities: st.cities, seed: st.seed, difficulty: st.difficulty, fog: st.fog, classic: st.classic, portrait: st.portrait, realmIds: realmIds(), neutrals: st.unsworn });
       ov.querySelector('i').style.width = '90%'; await sleep(30); stopTitleMap(); hooks.ready = () => ov.remove(); await enterGame(g); } catch (e) { console.error(e); toast('The world could not be made: ' + e.message, 'bad'); } ov.remove(); hooks.ready = null;

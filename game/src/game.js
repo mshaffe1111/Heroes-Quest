@@ -49,7 +49,7 @@ function skeleton() {
   // phones: one slim bar (menu, turn, realm, gold, this turn's news) instead of the menu bar
   const ptop = h('div', { id: 'ptop' }, h('button', { class: 'pmenu', 'aria-label': 'Menu', onclick: () => phoneMenu() }, h('i'), h('i'), h('i')),
     h('span', { class: 'pturn', id: 'pturn' }), h('span', { id: 'pcrest' }), h('span', { class: 'sp' }), h('span', { class: 'pgold', id: 'pgold' }),
-    h('button', { class: 'pbell', id: 'pbell', 'aria-label': 'This turn', onclick: () => phoneNews() }, ic('bell'), h('b', { id: 'pbelln' })));
+    fsButton('pfs'), h('button', { class: 'pbell', id: 'pbell', 'aria-label': 'This turn', onclick: () => phoneNews() }, ic('bell'), h('b', { id: 'pbelln' })));
   const cmd = (icon, label, key, fn, id) => h('button', { class: 'btn cmd', id: id ?? null, onclick: () => { if (!S.busy) fn(); } }, ic(icon), h('span', {}, label), key ? h('kbd', {}, key) : null);
   const openHere = () => { const c = S.sel && E.cityAt(S.g, S.sel.x, S.sel.y); if (c && c.owner === S.me) D.openCity(c.id); else D.openCities(); };
   const stage = h('div', { id: 'stage' },
@@ -88,11 +88,11 @@ function placeLayout() {
 export async function enterGame(g, { resume = false } = {}) {
   skeleton();
   S.g = g; S.meta = g.meta ?? {}; S.me = [...g.realms.values()].find((r) => r.human)?.id ?? [...g.realms.keys()][0]; S.sel = null; S.path = null; S.busy = false;
-  hooks.stopTitle?.(); document.body.classList.add('ingame'); $('#title')?.classList.add('hidden'); $('#game').classList.remove('hidden'); setScene('map');
+  S.goFull?.(); hooks.stopTitle?.(); document.body.classList.add('ingame'); $('#title')?.classList.add('hidden'); $('#game').classList.remove('hidden'); setScene('map');
   S.view?.destroy();
   const old = $('#map'); const cv = old.cloneNode(false); old.replaceWith(cv);
   const view = new MapView(cv, g, S.assets, { me: S.me, onTile, onHover });
-  view.minimapEl = $('#minimap'); S.view = view;
+  view.minimapEl = $('#minimap'); S.view = view; document.body.classList.toggle('nomini', !!S.opts.miniOff);
   const mini = $('#minimap'); mini.height = Math.round(mini.width * g.height / g.width);      // the small map keeps the world's shape
   // where the picture really sits inside the element (object-fit: contain leaves bands at the sides), so a tap lands on the right square
   const mm = (e) => { const r = mini.getBoundingClientRect(); const fit = getComputedStyle(mini).objectFit; const k = fit === 'contain' ? Math.min(r.width / mini.width, r.height / mini.height) : fit === 'cover' ? Math.max(r.width / mini.width, r.height / mini.height) : null;
@@ -110,7 +110,7 @@ export async function enterGame(g, { resume = false } = {}) {
 }
 function leaveGame() { document.body.classList.remove('ingame'); S.view?.destroy(); S.view = null; $('#game').classList.add('hidden'); closeAllModals(); S.g = null; }
 hooks.toTitle = async () => { if (S.busy) { toast('The other realms are still playing. Wait a moment.'); return; } if (S.g && !S.g.over) D.doAutosave(); leaveGame(); const { showTitle } = await import('./newgame.js'); showTitle(); };
-hooks.loadSlot = (slot) => { if (S.busy) { toast('The other realms are still playing. Wait a moment.'); return; } const r = E.loadFromSlot(D.saveStore, slot); if (!r.ok) { toast('That save could not be loaded: ' + r.reason.replaceAll('-', ' '), 'bad'); return; } hooks.loadGame(r.game); };
+hooks.loadSlot = (slot) => { S.goFull?.(); if (S.busy) { toast('The other realms are still playing. Wait a moment.'); return; } const r = E.loadFromSlot(D.saveStore, slot); if (!r.ok) { toast('That save could not be loaded: ' + r.reason.replaceAll('-', ' '), 'bad'); return; } hooks.loadGame(r.game); };
 hooks.loadGame = (game) => { closeAllModals(); S.view?.destroy(); enterGame(game, { resume: true }); };
 
 // ======================================================================================================================
@@ -473,7 +473,13 @@ function nextHero() {
   const cur = S.sel?.ids?.find((id) => S.g.armies.get(id) && E.isHero(S.g.armies.get(id))); const i = hs.findIndex((a) => a.id === cur); const a = hs[(i + 1) % hs.length];
   selectStack(a.x, a.y); centreSel(); refresh();
 }
-function toggleMini() { const m = $('#minimap'); m.classList.toggle('hidden'); }
+/** The small map on or off. Off gives its space to the big map (phones especially); the choice is remembered. */
+function toggleMini(on = null) {
+  const off = on == null ? !document.body.classList.contains('nomini') : !on; document.body.classList.toggle('nomini', off); $('#minimap').classList.remove('hidden');
+  S.opts.miniOff = off; try { localStorage.setItem('hq-opts', JSON.stringify(S.opts)); } catch { /* private mode */ }
+  requestAnimationFrame(() => { S.view?.resize?.(); if (S.view) { S.view.dirty = true; S.view.minimapDirty = true; } });
+  toast(off ? 'Small map off. Turn it back on from the menu, under View.' : 'Small map on.');
+}
 function onKey(e) {
   if (!S.g || $('#game').classList.contains('hidden')) return; if (e.target.matches('input,textarea,select')) return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;      // FIX: Ctrl+F (find) used to fortify the selection, Ctrl+D (bookmark) to rest it, Ctrl+W/N/M ...

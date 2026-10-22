@@ -71,41 +71,61 @@ function addTypeDialog(city, back) {
 // ===== battle ==================================================================================================================
 /** Replays a finished battle fight by fight. Resolves when the player has seen (or skipped) it. */
 export function showBattle(result, { attacker, defender, place, tile, theirs = false }) {
+  // The fight window, phone first (board: Fight + BattleResult). Your armies on top, theirs below, every army named; each duel lights the two
+  // fighters and a line says who struck whom; the fallen are greyed with a red cross; the end card lists exactly who was lost, heroes first.
   return new Promise((resolve) => {
-    const b = result.battle; const g = S.g; let skip = false; let m;
-    const attS = new Map(), defS = new Map();
-    const A = [...b.survivors.attackers, ...b.dead.attackers], D = [...b.survivors.defenders, ...b.dead.defenders];
-    const order = (arr, fights, side) => { const seen = []; for (const f of fights) { const id = f[side].id; if (!seen.includes(id)) seen.push(id); } for (const a of arr) if (!seen.includes(a.id)) seen.push(a.id); return seen.map((id) => arr.find((a) => a.id === id)).filter(Boolean); };
-    const attOrder = order(A, b.fights, 'attacker'), defOrder = order(D, b.fights, 'defender');
-    const arena = h('div', { class: 'arena' }); const log = h('div', { class: 'log' });
-    const chips = (list, side) => h('div', { class: 'row' }, list.map((a) => { const c = h('div', { class: 'chip', 'data-id': a.id, title: unitName(a) }, h('img', { src: medalImg(a.type, a.owner, 80) })); return c; }));
-    const duel = h('div', { class: 'duel' }); const sideA = h('div', { class: 'side' }, h('div', { class: 'sec', style: { margin: '0 0 4px' } }, `${realmName(attacker)} attacks`), chips(attOrder, 'a')); const sideD = h('div', { class: 'side r' }, h('div', { class: 'sec', style: { margin: '0 0 4px' } }, `${place ? place + ' · ' : ''}${realmName(defender)} defends`), chips(defOrder, 'd'));
-    arena.append(sideA, duel, sideD); sfx('horn'); pushBattle();
-    const title = h('h2', { style: { fontSize: '28px' } }, place ? `Battle at ${place}` : 'Battle');
-    const skipBtn = h('button', { class: 'btn', onclick: () => { skip = true; } }, 'Skip'); const doneBtn = h('button', { class: 'btn pri', style: { display: 'none' }, onclick: () => { popBattle(); m.close(); resolve(); } }, 'Continue');
-    const f = frame([h('div', { class: 'eyebrow' }, theirs ? `${realmName(attacker)} attacked you` : 'The armies meet'), title, arena, log, h('div', { class: 'foot' }, skipBtn, doneBtn)], { width: 920, closeButton: false });
-    m = openModal(f, { dismiss: false }); m.onEsc = () => { skip = true; };      // FIX: Esc = Skip (was: closed the modal and left the promise pending forever)
-    const chipOf = (id) => f.querySelector(`.chip[data-id="${id}"]`);
+    const b = result.battle; let m; let skip = false;
+    const mine = theirs ? 'defender' : 'attacker', other = theirs ? 'attacker' : 'defender';
+    const myRealm = theirs ? defender : attacker, foeRealm = theirs ? attacker : defender;
+    const listOf = (side) => { const alive = side === 'attacker' ? b.survivors.attackers : b.survivors.defenders, dead = side === 'attacker' ? b.dead.attackers : b.dead.defenders; const all = [...alive, ...dead];
+      const seen = []; for (const f of b.fights) { const id = f[side].id; if (!seen.includes(id)) seen.push(id); } for (const a of all) if (!seen.includes(a.id)) seen.push(a.id); return seen.map((id) => all.find((a) => a.id === id)).filter(Boolean); };
+    const nameOf = (a) => (E.isHero(a) ? (a.name ?? 'Your hero') : typeName(a.type));
+    const short = (a) => (E.isHero(a) ? (a.name ?? 'Hero') : typeName(a.type).replace('Heavy ', 'Hvy ').replace('Light ', 'Lt ').replace('Infantry', 'Inf.').replace('Cavalry', 'Cav.'));
+    const chip = (a) => h('div', { class: 'ch' + (E.isHero(a) ? ' hero' : ''), 'data-id': a.id }, h('div', { class: 'md' }, h('img', { src: medalImg(a.type, a.owner, 96), alt: '' }), E.isHero(a) ? h('span', { class: 'crown', title: 'Hero' }, '♛') : null, h('span', { class: 'kx' })),
+      h('div', { class: 'nm' }, short(a)), h('div', { class: 'fl' }, 'fallen'));
+    const band = (side, realm, list) => h('div', { class: 'band ' + (side === mine ? 'me' : 'foe') }, h('div', { class: 'bh' }, crest(colorOf(realm), 26), h('div', {}, h('b', {}, side === mine ? `Your armies · ${realmName(realm)}` : (realm ? realmName(realm) : 'The Unsworn') + (place && side === 'defender' ? ` · ${place}` : '')),
+      h('small', {}, side === 'attacker' ? 'Attacking' : 'Defending', h('span', { class: 'cnt' }))), h('span', { class: 'sp' })), h('div', { class: 'chips' }, list.map(chip)));
+    const myList = listOf(mine), foeList = listOf(other);
+    const bandMe = band(mine, myRealm, myList), bandFoe = band(other, foeRealm, foeList);
+    const count = () => { for (const [el, list] of [[bandMe, myList], [bandFoe, foeList]]) { const up = list.filter((a) => !el.querySelector(`.ch[data-id="${a.id}"]`)?.classList.contains('dead')).length; el.querySelector('.cnt').textContent = ` · ${up} of ${list.length} standing`; } };
+    const round = h('div', { class: 'round' }, h('b', {}, 'Ready'), h('span', {}, 'The armies close in'));
+    const speeds = [['slow', 'Slow', 1.7], ['normal', 'Normal', 1], ['fast', 'Fast', 0.4]]; const spd = () => (speeds.find((q) => q[0] === (S.opts.battleSpeed ?? 'normal')) ?? speeds[1])[2];
+    const segs = h('div', { class: 'segs' }, speeds.map(([k, t]) => h('button', { class: 'seg' + ((S.opts.battleSpeed ?? 'normal') === k ? ' on' : ''), onclick: (e) => { S.opts.battleSpeed = k; try { localStorage.setItem('hq-opts', JSON.stringify(S.opts)); } catch { /* private */ } segs.querySelectorAll('.seg').forEach((x) => x.classList.toggle('on', x === e.currentTarget)); } }, t)));
+    const skipBtn = h('button', { class: 'btn pri', onclick: () => { skip = true; } }, 'Skip to the result');
+    const doneBtn = h('button', { class: 'btn pri', style: { display: 'none' }, onclick: () => { popBattle(); m.close(); resolve(); } }, 'Continue');
+    const head = h('div', { class: 'bthead' }, h('div', { class: 'eyebrow' }, theirs ? `${realmName(attacker)} attacks you` : 'The armies meet'), h('h2', {}, place ? `Battle at ${place}` : 'Battle'));
+    const body = h('div', { class: 'btbody' }, bandMe, round, bandFoe);
+    const foot = h('div', { class: 'btfoot' }, h('div', { class: 'spd' }, h('small', {}, 'Speed'), segs), h('span', { class: 'sp' }), skipBtn, doneBtn);
+    const f = frame([head, body, foot], { width: 760, closeButton: false, cls: 'bt' });
+    m = openModal(f, { dismiss: false }); m.onEsc = () => { skip = true; }; sfx('horn'); pushBattle(); count();
+    const chipOf = (id) => f.querySelector(`.ch[data-id="${id}"]`);
     (async () => {
       try {
-      let n = 0;
-      for (const fight of b.fights) {
-        n++; const ea = chipOf(fight.attacker.id), ed = chipOf(fight.defender.id); f.querySelectorAll('.chip.front').forEach((c) => c.classList.remove('front')); ea?.classList.add('front'); ed?.classList.add('front');
-        const ta = typeName(fight.attacker.type), td = typeName(fight.defender.type);
-        const hero = (x) => x.type === 'hero' ? 'Hero' : null;
-        duel.replaceChildren(h('div', { class: 'big' }, h('div', {}, h('div', { class: 'sbig' }, fight.attacker.strength), h('div', {}, ta)), h('div', { class: 'vs' }, 'vs'), h('div', {}, h('div', { class: 'sbig' }, fight.defender.strength), h('div', {}, td))),
-          fight.stackBonus.attacker || fight.stackBonus.defender ? h('div', { style: { font: '500 12px Inter', color: '#9fb4cc' } }, `Stack bonus: you +${theirs ? fight.stackBonus.defender : fight.stackBonus.attacker} · they +${theirs ? fight.stackBonus.attacker : fight.stackBonus.defender}`) : null);
-        if (!skip) await sleep(650);
-        const loser = fight.winner === 'attacker' ? ed : ea; loser?.classList.add('dead'); sfx('clash', fight.attacker.strength + fight.defender.strength > 10); setTimeout(() => sfx('fall'), 180);
-        log.append(h('div', {}, h('b', {}, `Duel ${n}: `), `${fight.winner === 'attacker' ? ta : td} beats ${fight.winner === 'attacker' ? td : ta} (${fight.attacker.strength} v ${fight.defender.strength}).`)); log.scrollTop = 1e6;
-        if (!skip) await sleep(450);
-      }
-      f.querySelectorAll('.chip.front').forEach((c) => c.classList.remove('front'));
-      const won = theirs ? b.winner === 'defender' : b.winner === 'attacker';
-      const lostMine = theirs ? b.dead.defenders.length : b.dead.attackers.length, lostTheirs = theirs ? b.dead.attackers.length : b.dead.defenders.length;
-      duel.replaceChildren(h('div', { class: 'vs', style: { fontSize: '20px' } }, b.retreated ? 'Called off' : won ? 'Victory' : 'Defeat'), h('div', {}, `${lostMine} of yours lost · ${lostTheirs} of theirs fell`));
-      sfx(won && !b.retreated ? 'victory' : 'defeat'); skipBtn.style.display = 'none'; doneBtn.style.display = '';
-      } catch (e) { console.error('battle replay failed', e); skipBtn.style.display = 'none'; doneBtn.style.display = ''; }      // FIX: never leave the player with a modal that cannot be closed
+        let n = 0;
+        for (const fight of b.fights) {
+          n++; f.querySelectorAll('.ch.front').forEach((c) => c.classList.remove('front'));
+          const A = fight[mine], O = fight[other]; const ca = chipOf(A.id), co = chipOf(O.id); ca?.classList.add('front'); co?.classList.add('front');
+          const aArmy = myList.find((q) => q.id === A.id), oArmy = foeList.find((q) => q.id === O.id);
+          round.className = 'round'; round.replaceChildren(h('b', {}, `Round ${n}`), h('span', {}, `Your ${aArmy ? short(aArmy) : typeName(A.type)} (${A.strength}) against their ${oArmy ? short(oArmy) : typeName(O.type)} (${O.strength})`));
+          if (!skip) await sleep(700 * spd());
+          const iWon = fight.winner === mine; const loserChip = iWon ? co : ca; loserChip?.classList.add('dead'); count();
+          sfx('clash', fight.attacker.strength + fight.defender.strength > 10); setTimeout(() => sfx('fall'), 180);
+          const lost = iWon ? oArmy : aArmy;
+          round.className = 'round ' + (iWon ? 'good' : 'bad'); round.replaceChildren(h('b', {}, `Round ${n}`), h('span', {}, iWon ? `Your ${short(aArmy ?? { type: A.type })} beats their ${lost ? short(lost) : typeName(O.type)}` : `You lose your ${lost ? nameOf(lost) : typeName(A.type)}${lost && E.isHero(lost) ? ' — your hero has fallen' : ''}`));
+          if (!skip) await sleep(650 * spd());
+        }
+        f.querySelectorAll('.ch.front').forEach((c) => c.classList.remove('front'));
+        // the end card
+        const won = theirs ? b.winner === 'defender' : b.winner === 'attacker';
+        const deadMine = theirs ? b.dead.defenders : b.dead.attackers, deadFoe = theirs ? b.dead.attackers : b.dead.defenders;
+        const lostLine = (arr) => { const heroes = arr.filter(E.isHero).map((a) => `${a.name ?? 'a hero'} (hero)`); const by = new Map(); for (const a of arr.filter((q) => !E.isHero(q))) by.set(typeName(a.type), (by.get(typeName(a.type)) ?? 0) + 1); return [...heroes, ...[...by].map(([k, c]) => (c > 1 ? `${c} × ${k}` : k))].join(', ') || 'nobody'; };
+        head.replaceChildren(h('div', { class: 'eyebrow' }, b.retreated ? 'Called off' : won ? 'You won' : 'You lost'), h('h2', { class: won ? 'win' : 'loss' }, `${b.retreated ? 'Retreat' : won ? 'Victory' : 'Defeat'}${place ? ' at ' + place : ''}`));
+        round.className = 'round sum'; round.replaceChildren(...[
+          h('div', { class: 'ln ' + (deadMine.length ? 'bad' : 'good') }, h('b', {}, 'You lost'), h('span', {}, lostLine(deadMine))),
+          deadMine.some(E.isHero) ? h('div', { class: 'ln bad hero' }, h('b', {}, '♛'), h('span', {}, `${deadMine.filter(E.isHero).map((a) => a.name ?? 'Your hero').join(' and ')} fell in this battle. Their items lie where they fell.`)) : null,
+          h('div', { class: 'ln good' }, h('b', {}, 'They lost'), h('span', {}, lostLine(deadFoe)))].filter(Boolean));
+        sfx(won && !b.retreated ? 'victory' : 'defeat'); skipBtn.style.display = 'none'; doneBtn.style.display = ''; doneBtn.focus?.();
+      } catch (e) { console.error('battle replay failed', e); skipBtn.style.display = 'none'; doneBtn.style.display = ''; }      // never leave the player with a window that cannot be closed
     })();
   });
 }
@@ -198,6 +218,7 @@ export function openOptions() {
     row('Quiet when you switch tabs', 'Pauses music and effects while the game is in the background.', sw('quietHidden')),
     h('div', { class: 'eyebrow', style: { margin: '14px 0 6px' } }, 'Game flow'),
     row('Enemy turns', 'Every enemy army moves in turn while the camera follows it. Tap to skip an army, or skip the rest.', h('div', { class: 'segs' }, modeBtns)),
+    row('Open in full screen', 'The game fills the whole screen as soon as you tap, hiding the browser’s bars. Best on phones.', sw('autoFull')),
     row('Camera follows armies', 'Centres the map on each army as it moves, on your turn and theirs.', sw('follow')), h('div', { class: 'sub2' }, slider('moveSpeed', 'Movement speed', save)),
     row('Combat advisor', 'Show your chance of winning when you point an army at an enemy.', sw('odds')),
     row('Jump to the next army', 'After an army has moved, select the next one that still has orders.', sw('autoNext')),
