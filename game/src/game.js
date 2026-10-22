@@ -261,7 +261,9 @@ let lastClick = { t: 0, x: -1, y: -1 };
 function onHover(t) { const el = $('#mapwrap'); if (!el) return; el.style.cursor = S.sel && t ? 'crosshair' : 'default'; }
 async function onTile(t, info) {
   const g = S.g; if (S.busy || !g || modalOpen()) return; if (t.x < 0 || t.y < 0 || t.x >= g.width || t.y >= g.height) return;
-  const pin = S.view.pinAt(info.px, info.py); const tile = pin ?? t; const x = tile.x, y = tile.y;
+  const pin = S.view.pinAt(info.px, info.py);
+  const snap = !pin && S.sel && !E.cityAt(g, t.x, t.y) && !E.armiesAt(g, t.x, t.y).length ? S.view.roadSnap(info.px, info.py) : null;      // a tap beside the road means the road
+  const tile = pin ?? snap ?? t; const x = tile.x, y = tile.y;
   const fogHidden = E.fogOn(g) && !E.isExplored(g, S.me, x, y); if (fogHidden && !S.sel) return;
   const city = E.cityAt(g, x, y); const own = ownAt(x, y); const now = performance.now(); const dbl = now - lastClick.t < 380 && lastClick.x === x && lastClick.y === y; lastClick = { t: now, x, y };
   if (info.right && S.sel) return preview(x, y);
@@ -284,8 +286,10 @@ function preview(x, y) {
   if (x === S.sel.x && y === S.sel.y) return;
   const search = E.routeSearch(g, ids); const r = E.routeTo(search, { x, y });
   if (!r) { toast('Your armies cannot get there.', 'bad'); S.path = null; S.view.path = null; refresh(); return; }
-  const last = r.steps[r.steps.length - 1]; const full = Math.max(1, Math.min(...armies.map((a) => E.moveOf(a, g.rules)))); const mp = E.limitingMovePoints(armies);
-  const extra = r.cost <= mp ? 0 : Math.ceil((r.cost - mp) / full); let label = extra === 0 ? 'This turn' : extra === 1 ? 'Next turn' : `In ${extra} turns`; let odds = null;
+  const last = r.steps[r.steps.length - 1]; const { turnAt, extra } = marchTurns(armies, r.steps);
+  const squares = r.steps.filter((s) => s.action !== 'embark' && s.action !== 'disembark').length; const straight = Math.max(Math.abs(x - S.sel.x), Math.abs(y - S.sel.y));
+  const why = squares > straight * 2 + 2 ? ' · the way goes around' : extra >= 2 && r.steps.some((s) => { const t = E.tileAt(g, s.x, s.y); return t && !t.road && !t.cityId && (t.terrain === 'woods' || t.terrain === 'hills'); }) ? ' · woods and hills are slow' : '';
+  const when = extra === 0 ? 'This turn' : extra === 1 ? 'Next turn' : `In ${extra} turns`; let label = when + (extra >= 2 ? ` · ${squares} squares${why}` : ''); let odds = null;
   if (last.action === 'attack') {
     odds = oddsFor(armies, x, y); label = odds && S.opts.odds !== false ? `Attack · ${Math.round(odds.winChance * 100)}%` : 'Attack';
     // FIX: the attack step itself needs move points (the target square's cost); say so instead of failing later with a 2-second toast
@@ -293,9 +297,23 @@ function preview(x, y) {
   }
   // FIX (fog): a square the player cannot see is shown as a plain march; the engine's 'attack' flag (and the foe count/realm) would reveal what is hiding there
   const hiddenAttack = last.action === 'attack' && E.fogOn(g) && !E.visibleSet(g, S.me).has(E.tileIndex(g, x, y));
-  if (hiddenAttack) { label = extra === 0 ? 'This turn' : extra === 1 ? 'Next turn' : `In ${extra} turns`; odds = null; }
-  S.path = { dest: { x, y }, steps: r.steps, from: { x: S.sel.x, y: S.sel.y }, cost: r.cost, extra, odds, label, attack: last.action === 'attack' && !hiddenAttack, hiddenAttack };
+  if (hiddenAttack) { label = when; odds = null; }
+  S.path = { dest: { x, y }, steps: r.steps, from: { x: S.sel.x, y: S.sel.y }, cost: r.cost, extra, turnAt, odds, label, attack: last.action === 'attack' && !hiddenAttack, hiddenAttack };
   S.view.path = S.path; S.view.dirty = true; refresh();
+}
+/** Walk the route turn by turn the way the march really goes: this turn's move points first, then a full turn's worth each turn; taking to
+ *  the boats, stepping off them and coming ashore each end that turn's move. Returns the turn (0 = this one) each step is reached in. */
+function marchTurns(armies, steps) {
+  const g = S.g; const full = Math.max(1, Math.min(...armies.map((a) => E.moveOf(a, g.rules)))); let mp = E.limitingMovePoints(armies); let afloat = armies.every((a) => a.afloat);
+  let turn = 0; const turnAt = [];
+  for (const s of steps) {
+    if (s.action === 'embark' || s.action === 'disembark') { if (mp <= 0) { turn++; } afloat = s.action === 'embark'; mp = 0; turnAt.push(turn); continue; }
+    const c = E.groupMoveCost(armies.map((a) => ({ ...a, afloat })), E.tileAt(g, s.x, s.y), g.rules); const need = Number.isFinite(c) ? c : full;
+    if (mp < need) { turn++; mp = full; }
+    mp = Math.max(0, mp - need); if (s.action === 'land') { afloat = false; mp = 0; }
+    turnAt.push(turn);
+  }
+  return { turnAt, extra: turnAt.length ? turnAt[turnAt.length - 1] : 0 };
 }
 function oddsFor(armies, x, y) {
   const g = S.g; if (E.fogOn(g) && !E.visibleSet(g, S.me).has(E.tileIndex(g, x, y))) return null;

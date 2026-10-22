@@ -1,6 +1,6 @@
 import { groupCanFly, limitingMovePoints } from './movement.js';
 import { moveLetter, isLandingKind } from './terrain.js';
-import { def, isHero } from './units.js';
+import { def, isHero, moveOf } from './units.js';
 import { tileAt, isEmbarkPoint, cityAt, armiesAt } from './game.js';
 import { Heap } from './mapgen/grid.js';
 
@@ -17,7 +17,7 @@ export function routeSearch(g, ids, { through = false, maxCost = Infinity } = {}
   const real = ids.map((id) => g.armies.get(id)); const first = real[0]; const owner = first.owner;
   const canFly = groupCanFly(real);
   const turn = Math.max(1, limitingMovePoints(real.map((a) => ({ ...a, mp: Math.max(a.mp, 1) }))));
-  const penalty = turn;      // a landing or an embarkation uses up the rest of the turn
+  const penalty = Math.max(1, Math.min(...real.map((a) => moveOf(a, g.rules))));      // a landing or an embarkation ends the turn: price it as a whole turn's march, so a group that has spent its move is not lured onto the boats
   const W = g.width, H = g.height; const N = W * H * 2;
   const dist = new Float64Array(N).fill(Infinity); const prev = new Int32Array(N).fill(-1); const how = new Array(N);
   const id = (x, y, af) => (y * W + x) * 2 + af;

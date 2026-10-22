@@ -8,7 +8,7 @@ const SPR = [...['apple', 'blossom', 'coppice', 'dark', 'elder', 'gnarled', 'ivy
   ...['brown4', 'forest5', 'scree6', 'snow1', 'snow2', 'spire3'].map((n) => 'mtn_' + n),
   ...['cairn', 'fernrock', 'gorse', 'heather', 'ledge', 'lichen', 'menhir', 'mossrock', 'scrubtree', 'stones'].map((n) => 'hd_' + n),
   ...['r1', 'r2', 'r3', 'pile', 'grassrock', 'slab5'].map((n) => 'rock_' + n)];
-const SITE = ['temple', 'mage_tower', 'jetty', 'razed_castle', 'bones', 'ruin_arch', 'ruin_columns', 'ruin_keep', 'ruin_statue', 'harbor', 'trove'];
+const SITE = ['temple', 'mage_tower', 'jetty', 'razed_castle', 'bones', 'ruin_arch', 'ruin_columns', 'ruin_keep', 'ruin_statue', 'harbor', 'trove', 'shrine', 'standard'];
 const MEDALS = ['arch', 'bat', 'cat', 'demon', 'devil', 'drag', 'dwarf', 'ele', 'elem', 'elf', 'flag', 'giant', 'grif', 'hcav', 'hero', 'hinf', 'lcav', 'linf', 'mino', 'navy', 'orc', 'peg', 'pike', 'scout', 'spid', 'undead', 'uni', 'wiz', 'wolf', 'wyrm'];
 const CASTLES = Object.values(E.PALETTE).length ? Object.keys(E.PALETTE) : [];
 
@@ -95,6 +95,27 @@ export class MapView {
     const wx = sx / this.cam.z + this.cam.x, wy = sy / this.cam.z + this.cam.y; this.cam.z = nz; this.cam.x = wx - sx / nz; this.cam.y = wy - sy / nz; this.clamp(); this.dirty = true;
   }
 
+  /** How big an army's medal is on screen: bigger than before (Matt, 22 Oct: hard to see), and bigger again on touch screens. */
+  medalSize() { const z = this.cam.z; if (this.coarse == null) { try { this.coarse = matchMedia('(pointer: coarse)').matches; } catch { this.coarse = false; } }
+    return this.coarse ? Math.max(32, Math.min(72, TP * z * 1.05)) : Math.max(26, Math.min(66, TP * z * 0.95)); }
+  /** A tap that lands right beside a drawn road (a road cutting the corner of a square looks like it runs through that square): the road square. */
+  roadSnap(px, py) {
+    const g = this.g, z = this.cam.z; const wx = px / z + this.cam.x, wy = py / z + this.cam.y; const tx = Math.floor(wx / TP), ty = Math.floor(wy / TP);
+    const isRoad = (x, y) => { const t = E.tileAt(g, x, y); return !!t && !!(t.road || t.cityId) && (t.terrain !== 'water' || !!t.bridge); };
+    if (isRoad(tx, ty)) return null;
+    let best = null;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const ax = tx + dx, ay = ty + dy; if (!isRoad(ax, ay)) continue;
+      for (let ey = -1; ey <= 1; ey++) for (let ex = -1; ex <= 1; ex++) {
+        if (!ex && !ey) continue; const bx = ax + ex, by = ay + ey; if (!isRoad(bx, by)) continue;
+        const Ax = (ax + 0.5) * TP, Ay = (ay + 0.5) * TP, Bx = (bx + 0.5) * TP, By = (by + 0.5) * TP; const vx = Bx - Ax, vy = By - Ay;
+        const u = Math.max(0, Math.min(1, ((wx - Ax) * vx + (wy - Ay) * vy) / (vx * vx + vy * vy))); const d = Math.hypot(wx - (Ax + u * vx), wy - (Ay + u * vy));
+        if (d < TP * 0.26 && (!best || d < best.d)) best = u < 0.5 ? { d, x: ax, y: ay } : { d, x: bx, y: by };
+      }
+    }
+    return best ? { x: best.x, y: best.y } : null;
+  }
+
   // ---- cached, tinted pictures ----------------------------------------------------------
   medal(type, hex) { return tintedMedal(this.a, type, hex); }
   castleImg(realm) {
@@ -124,12 +145,15 @@ export class MapView {
   // ---- drawing --------------------------------------------------------------------------
   draw() {
     this.dirty = false; const ctx = this.ctx, z = this.cam.z, g = this.g; const now = (performance.now() - this.t0) / 1000;
-    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0); ctx.fillStyle = '#1d3a52'; ctx.fillRect(0, 0, this.w, this.h);
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    // the open sea carries on past the edge of the map
+    if (this.a.tex.water) { const wp = this.seaPat ?? (this.seaPat = ctx.createPattern(this.a.tex.water, 'repeat')); wp.setTransform(new DOMMatrix([z, 0, 0, z, -this.cam.x * z, -this.cam.y * z])); ctx.fillStyle = wp; ctx.fillRect(0, 0, this.w, this.h); ctx.fillStyle = 'rgba(8,32,60,0.42)'; ctx.fillRect(0, 0, this.w, this.h); }
+    else { ctx.fillStyle = '#1d3a52'; ctx.fillRect(0, 0, this.w, this.h); }
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
     const cs = CH * TP * z; const sx0 = -this.cam.x * z, sy0 = -this.cam.y * z;
     const cx0 = Math.max(0, Math.floor(this.cam.x / (CH * TP))), cx1 = Math.min(this.painter.cw - 1, Math.floor((this.cam.x + this.w / z) / (CH * TP)));
     const cy0 = Math.max(0, Math.floor(this.cam.y / (CH * TP))), cy1 = Math.min(this.painter.ch - 1, Math.floor((this.cam.y + this.h / z) / (CH * TP)));
-    let budget = 3; const lv = z >= 0.62 ? 1 : 0;
+    let budget = 3; const lv = z >= 0.4 ? 1 : 0;      // the close-up level down to 0.4: the overview level is only ever shrunk a little, never blown up
     for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) {
       let use = lv;
       if (!this.painter.has(cx, cy, lv)) { if (budget-- > 0) use = lv; else { this.dirty = true; use = this.painter.has(cx, cy, 1 - lv) ? 1 - lv : -1; if (use < 0) continue; } }
@@ -148,8 +172,14 @@ export class MapView {
       const t = E.tileAt(g, x, y); if (!t || (!t.site && !t.port) || !known(x, y)) continue;
       const s = S(x, y);
       if (t.site) {
-        const st = E.siteAt(g, x, y); let name = t.site === 'temple' ? 'temple' : t.site === 'tower' ? 'mage_tower' : 'ruin_' + ['arch', 'columns', 'keep', 'statue'][Math.floor(rnd(x, y, 9) * 4)];
-        const im = this.a.site[name]; if (im) { const h = TP * z * 1.25, w = im.width * h / im.height; ctx.globalAlpha = st?.explored ? 0.78 : 1; ctx.drawImage(im, s.x - w / 2, s.y + TP * z * 0.4 - h, w, h); ctx.globalAlpha = 1; }
+        const st = E.siteAt(g, x, y); const kind = st?.kind ?? t.site;
+        const name = kind === 'temple' ? 'temple' : kind === 'tower' ? 'mage_tower' : kind === 'library' ? 'shrine' : st?.stronghold ? 'ruin_keep' : 'ruin_' + ['arch', 'columns', 'keep', 'statue'][Math.floor(rnd(x, y, 9) * 4)];
+        const im = this.a.site[name]; const tall = { mage_tower: 1.9, temple: 1.55, shrine: 1.45 }[name] ?? 1.5;
+        if (im) { const h = Math.max(TP * z * tall, z < 0.5 ? 22 : 0), w = im.width * h / im.height;
+          ctx.fillStyle = 'rgba(14,24,8,0.32)'; ctx.beginPath(); ctx.ellipse(s.x, s.y + TP * z * 0.36, w * 0.42, h * 0.09, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = st?.explored ? 0.62 : 1; ctx.drawImage(im, s.x - w / 2, s.y + TP * z * 0.4 - h, w, h); ctx.globalAlpha = 1;
+          if (st?.explored && this.a.site.standard) { const fh = TP * z * 0.8, fw = this.a.site.standard.width * fh / this.a.site.standard.height; ctx.drawImage(this.a.site.standard, s.x + w * 0.3, s.y + TP * z * 0.42 - fh, fw, fh); }     // a banner planted: searched
+        }
       } else if (t.port) {
         const im = this.a.site.jetty; if (im) { const h = TP * z * 0.9, w = im.width * h / im.height; ctx.drawImage(im, s.x - w / 2, s.y + TP * z * 0.3 - h, w, h); }
       }
@@ -199,8 +229,8 @@ export class MapView {
   }
 
   drawCityLabel(ctx, { c, s, realm, owner, live, razed }) {
-    const z = this.cam.z; if (z < 0.42) return;
-    const fs = Math.max(11, Math.min(20, TP * z * 0.36)); ctx.font = `700 ${fs}px Cinzel, Georgia, serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    const z = this.cam.z; if (z < 0.26) return;
+    const fs = Math.max(z < 0.42 ? 10 : 11, Math.min(20, TP * z * 0.36)); ctx.font = `700 ${fs}px Cinzel, Georgia, serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
     const y = s.y + TP * z * 0.78;
     ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(8,14,24,0.85)'; ctx.strokeText(c.name, s.x, y); ctx.fillStyle = '#fff6dc'; ctx.fillText(c.name, s.x, y);
     if (z >= 0.7) {
@@ -215,7 +245,7 @@ export class MapView {
 
   // ---- enemy-turn playback : ghost stacks that walk a recorded path while the real armies are hidden ----------
   drawPlayback(ctx, S, now) {
-    const z = this.cam.z; const D = Math.max(18, Math.min(58, TP * z * 0.68));
+    const z = this.cam.z; const D = this.medalSize();
     for (const gh of this.ghosts) {
       if (gh.trail && gh.trail.length > 1) {                    // the road ahead: dotted, like the route preview
         ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.beginPath(); gh.trail.forEach((t, i) => { const p = S(t[0], t[1]); i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); });
@@ -247,7 +277,7 @@ export class MapView {
       if (view && a.owner !== this.me && !view.visible.has(a.y * g.width + a.x)) continue;
       const k = a.x + ',' + a.y; if (!seen.has(k)) seen.set(k, []); seen.get(k).push(a);
     }
-    const D = Math.max(18, Math.min(58, TP * z * 0.68));
+    const D = this.medalSize();
     const list = [...seen.entries()].map(([k, arr]) => { const [x, y] = k.split(',').map(Number); return { x, y, arr }; }).sort((p, q) => p.y - q.y);
     for (const st of list) {
       const owner = st.arr[0].owner; const realm = owner ? g.realms.get(owner) : null; const ord = E.orderedArmiesAt(g, st.x, st.y, owner);
@@ -273,7 +303,9 @@ export class MapView {
     ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.beginPath(); ctx.moveTo(from.x, from.y); pts.forEach((q) => ctx.lineTo(q.x, q.y)); ctx.strokeStyle = 'rgba(8,14,24,0.7)'; ctx.lineWidth = 7; ctx.stroke();
     ctx.setLineDash([2, 11]); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4; ctx.stroke(); ctx.setLineDash([]);
-    pts.forEach((q, i) => { const turn = p.turnAt?.[i]; if (turn != null && (i === pts.length - 1 || p.turnAt[i + 1] !== turn)) { ctx.fillStyle = '#f3dc9a'; ctx.beginPath(); ctx.arc(q.x, q.y, 6, 0, 7); ctx.fill(); ctx.strokeStyle = '#0b1320'; ctx.lineWidth = 2; ctx.stroke(); } });
+    pts.forEach((q, i) => { const turn = p.turnAt?.[i]; if (turn != null && i < pts.length - 1 && p.turnAt[i + 1] !== turn) {      // where each turn's march ends, numbered
+      ctx.fillStyle = '#f3dc9a'; ctx.beginPath(); ctx.arc(q.x, q.y, 9, 0, 7); ctx.fill(); ctx.strokeStyle = '#0b1320'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = '#20160a'; ctx.font = '800 11px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(turn + 1), q.x, q.y + 0.5); ctx.textBaseline = 'alphabetic'; } });
     const last = pts[pts.length - 1]; if (last) { const lab = p.label; if (lab) { ctx.font = '700 12px Inter, sans-serif'; const tw = ctx.measureText(lab).width + 18; const lx = last.x + 14, ly = last.y - 34; ctx.fillStyle = 'rgba(11,19,32,0.94)'; ctx.fillRect(lx, ly, tw, 24); ctx.strokeStyle = '#d8b25a'; ctx.lineWidth = 1.2; ctx.strokeRect(lx + 0.5, ly + 0.5, tw - 1, 23); ctx.fillStyle = '#f3dc9a'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; ctx.fillText(lab, lx + 9, ly + 12.5); ctx.textBaseline = 'alphabetic'; } }
     ctx.restore();
   }

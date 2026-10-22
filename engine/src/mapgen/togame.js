@@ -169,6 +169,7 @@ export function mapToGame(map, opts = {}) {
       addArmy(g, type, null, c.x, c.y); if (kind === 'active') c.active = true;
     }
   });
-  g.map = { shape: map.shape, seed: map.seed, caps: map.caps.filter((_, r) => r < realmIds.length).map((c) => `c${c}`), isle: map.cities.map((_, i) => (map.isle[i] ? `c${i}` : null)).filter(Boolean) };
+  g.map = { shape: map.shape, seed: map.seed, caps: map.caps.filter((_, r) => r < realmIds.length).map((c) => `c${c}`), isle: map.cities.map((_, i) => (map.isle[i] ? `c${i}` : null)).filter(Boolean),
+    roads: (map.roads ?? []).map((r) => r.cells.map(([y, x]) => y * W + x)) };     // the road routes as the generator laid them (squares in order), so the painter can draw smooth roads
   return { game: g, notes };
 }
