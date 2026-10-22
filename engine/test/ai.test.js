@@ -87,3 +87,17 @@ test('difficulty: Easy sometimes stays home with spare soldiers; Medium never do
   const idled = (g) => Object.values(g.ai).reduce((a, x) => a + (x.stats.idled ?? 0), 0);
   assert.ok(idled(playLevels(2, 12, () => 'easy')) >= 3); assert.equal(idled(playLevels(2, 12, () => 'medium')), 0);
 });
+
+test('a battle listener hears every fight with who attacked whom, and cannot change the outcome', () => {
+  const heard = [];
+  E.setBattleHook((b) => { heard.push(b); throw new Error('a listener that blows up must not matter'); });
+  try {
+    const g = play('continent', 5, 12);
+    const fights = g.stats.battles.length;
+    assert.ok(fights > 0, 'the computer realms fought');
+    assert.equal(heard.length, g.stats.battles.filter((b) => b.attackers > 0 && b.defenders > 0).length);
+    for (const b of heard) { assert.ok(b.result.battle && b.attacker && b.attacker !== b.defender); assert.ok(Number.isInteger(b.x) && Number.isInteger(b.y)); }
+  } finally { E.setBattleHook(null); }
+  const plain = play('continent', 5, 12);
+  assert.equal(plain.stats.battles.length > 0, true);
+});

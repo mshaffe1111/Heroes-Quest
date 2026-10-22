@@ -91,7 +91,7 @@ export class MapView {
     new ResizeObserver(() => this.resize()).observe(cv);
   }
   zoomAt(sx, sy, z, abs = false) {
-    const lo = Math.max(0.28, Math.min(this.w / (this.g.width * TP), this.h / (this.g.height * TP)) * 0.98), hi = 1.9; const nz = Math.min(hi, Math.max(lo, z));
+    const lo = Math.min(0.28, Math.max(0.05, Math.min(this.w / (this.g.width * TP), this.h / (this.g.height * TP)) * 0.98)), hi = 1.9; const nz = Math.min(hi, Math.max(lo, z));
     const wx = sx / this.cam.z + this.cam.x, wy = sy / this.cam.z + this.cam.y; this.cam.z = nz; this.cam.x = wx - sx / nz; this.cam.y = wy - sy / nz; this.clamp(); this.dirty = true;
   }
 

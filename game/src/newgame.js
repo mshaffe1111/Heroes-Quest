@@ -3,9 +3,11 @@ import * as E from '../../engine/src/index.js';
 import { generateMap } from '../../engine/src/mapgen/index.js';
 import { S, hooks } from './state.js';
 import { MapView, realmHex, medalURL } from './view.js';
+import { Painter, TP, CH } from './paint.js';
 import { h, $, crest, REALM_LOOK, toast, closeAllModals, sleep } from './ui.js';
 import { newGame, enterGame, SIZES } from './game.js';
 import * as D from './dialogs.js';
+import { setScene } from './audio.js';
 
 const SHAPES = [['continent', 'One continent', 'One big land with every realm on it. The classic war.'], ['river_split', 'Great river', 'A wide river splits the land. Bridges are the places to fight.'], ['split', 'Split by sea', 'Two lands joined by narrow necks and bridges.'], ['islands', 'Big islands', 'Several large islands. Ships matter more.'], ['archipelago', 'Archipelago', 'Many islands. Ships matter and some islets can only be reached by boat.']];
 const HERO_NAMES = ['Aldric', 'Brenna', 'Cassian', 'Dara', 'Edric', 'Fenna', 'Gareth', 'Hilde', 'Ivor', 'Jora', 'Kell', 'Lyra'];
@@ -24,7 +26,9 @@ async function backdrop(host) {
   let dir = Math.random() < 0.5 ? 1 : -1; const drift = () => { if (!titleView) return; titleView.cam.x += 0.35 * dir; titleView.cam.y += 0.08; titleView.clamp(); titleView.dirty = true; titleTimer = requestAnimationFrame(drift); }; drift();
 }
 
+let titleShown = false;
 export async function showTitle() {
+  setScene(titleShown ? 'menu' : 'title'); titleShown = true;
   stopTitleMap(); closeAllModals(); const t = root(); t.replaceChildren();
   const saves = E.listSaves(D.saveStore).filter((s) => !s.empty); const newest = saves.sort((a, b) => b.savedAt - a.savedAt)[0];
   t.append(h('div', { class: 'vig' }), h('div', { class: 'c' }, h('h1', {}, 'Heroes Quest'), h('div', { class: 'tag' }, 'A war for the crown of the broken land'),
@@ -35,6 +39,7 @@ export async function showTitle() {
 }
 
 export function showWizard() {
+  setScene('newgame');
   stopTitleMap(); const t = root(); t.replaceChildren();
   const st = { step: 1, realm: 'verdant', heroName: '', shape: 'continent', cities: 60, seed: 1000 + Math.floor(Math.random() * 9000), difficulty: 'medium', fog: false, classic: false };
   const names = ['Realm', 'Hero', 'World', 'Difficulty']; const ids = ['ivory', 'gold', 'ember', 'crimson', 'verdant', 'azure', 'tidewatch', 'ashen']; const colors = ['white', 'gold', 'orange', 'red', 'green', 'blue', 'cyan', 'black'];
@@ -78,14 +83,30 @@ export function showWizard() {
       st.step < 4 ? h('button', { class: 'btn pri big', onclick: () => { st.step++; draw(); } }, `Next: ${['', 'your hero', 'the world', 'difficulty'][st.step]}`) : h('button', { class: 'btn pri big', onclick: () => begin() }, 'Begin the war'));
     wiz.replaceChildren(head, h('div', { class: 'body' }, body), foot);
   };
+  let previewToken = 0, previewPainter = null;
   function paintPreview(cv) {
-    const [W, H] = SIZES[st.cities]; const key = `${st.shape}|${st.seed}|${st.cities}`; if (key !== previewKey) { try { const map = generateMap({ shape: st.shape, seed: st.seed, width: W, height: H, cities: st.cities, realms: 8 }); previewG = E.mapToGame(map).game; previewKey = key; } catch (e) { console.warn(e); return; } }
-    const g = previewG; const c = document.createElement('canvas'); c.width = g.width; c.height = g.height; const x = c.getContext('2d'); const d = x.createImageData(g.width, g.height);
+    const [W, H] = SIZES[st.cities]; const key = `${st.shape}|${st.seed}|${st.cities}`;
+    if (key !== previewKey) { try { const map = generateMap({ shape: st.shape, seed: st.seed, width: W, height: H, cities: st.cities, realms: 8 }); previewG = E.mapToGame(map).game; previewKey = key; previewPainter = null; } catch (e) { console.warn(e); return; } }
+    const g = previewG; const token = ++previewToken;
+    const w = 640, hh = Math.round(w * g.height / g.width); cv.width = w; cv.height = hh; cv.style.aspectRatio = `${g.width} / ${g.height}`;
+    const cx = cv.getContext('2d'); cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'high';
+    // first a quick flat colour map so the box is never empty, then the painted map fills in chunk by chunk
+    const c = document.createElement('canvas'); c.width = g.width; c.height = g.height; const x = c.getContext('2d'); const d = x.createImageData(g.width, g.height);
     const col = { open: [128, 160, 84], woods: [50, 100, 56], hills: [150, 160, 92], mountain: [136, 126, 112], water: [58, 124, 170], swamp: [90, 110, 70] };
     for (let y = 0; y < g.height; y++) for (let xx = 0; xx < g.width; xx++) { const t = E.tileAt(g, xx, y); const k = col[t.terrain] ?? col.open; const i = (y * g.width + xx) * 4; d.data[i] = k[0]; d.data[i + 1] = k[1]; d.data[i + 2] = k[2]; d.data[i + 3] = 255; }
-    x.putImageData(d, 0, 0); cv.width = 600; cv.height = Math.round(600 * g.height / g.width); const cx = cv.getContext('2d'); cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'high'; cx.drawImage(c, 0, 0, cv.width, cv.height);
-    const sx = cv.width / g.width, sy = cv.height / g.height;
-    for (const city of g.cities.values()) { const realm = city.owner ? g.realms.get(city.owner) : null; const isMe = city.owner === st.realm && g.map.caps.includes(city.id); cx.fillStyle = realmHex(realm) ?? '#e6dcc0'; const r = realm ? 5 : 3; cx.beginPath(); cx.arc((city.x + 0.5) * sx, (city.y + 0.5) * sy, isMe ? 8 : r, 0, 7); cx.fill(); cx.strokeStyle = isMe ? '#fff' : '#0b1320'; cx.lineWidth = isMe ? 2.5 : 1; cx.stroke(); }
+    x.putImageData(d, 0, 0); cx.drawImage(c, 0, 0, w, hh);
+    const dots = () => { const sx = w / g.width, sy = hh / g.height;
+      for (const city of g.cities.values()) { const realm = city.owner ? g.realms.get(city.owner) : null; const isMe = city.owner === st.realm && g.map.caps.includes(city.id); cx.fillStyle = realmHex(realm) ?? '#e6dcc0'; const r = realm ? 4 : 2.5; cx.beginPath(); cx.arc((city.x + 0.5) * sx, (city.y + 0.5) * sy, isMe ? 7 : r, 0, 7); cx.fill(); cx.strokeStyle = isMe ? '#fff' : '#0b1320'; cx.lineWidth = isMe ? 2.5 : 1; cx.stroke(); } };
+    dots();
+    if (!S.assets) return;
+    const P = previewPainter ?? (previewPainter = new Painter(g, S.assets)); P.chunks.clear();
+    const k = w / (g.width * TP); const list = []; for (let cy = 0; cy < P.ch; cy++) for (let cxx = 0; cxx < P.cw; cxx++) list.push([cxx, cy]);
+    let i = 0; const step = () => {
+      if (token !== previewToken || !cv.isConnected) return; const t0 = performance.now();
+      while (i < list.length && performance.now() - t0 < 14) { const [a, b] = list[i++]; const ch = P.get(a, b, 2); cx.drawImage(ch, a * CH * TP * k, b * CH * TP * k, CH * TP * k + 0.6, CH * TP * k + 0.6); P.chunks.clear(); }
+      if (i < list.length) requestAnimationFrame(step); else dots();
+    };
+    requestAnimationFrame(step);
   }
   async function begin() {
     const ov = h('div', { class: 'load' }, h('div', {}, 'Painting the world…'), h('div', { class: 'lb' }, h('i', { style: { width: '35%', transition: 'width 2s' } }))); $('#app').append(ov); await sleep(60);

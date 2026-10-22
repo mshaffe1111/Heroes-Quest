@@ -23,7 +23,7 @@ export class Painter {
   constructor(g, assets) {
     this.g = g; this.a = assets; this.chunks = new Map(); this.W = g.width; this.H = g.height;
     this.cw = Math.ceil(g.width / CH); this.ch = Math.ceil(g.height / CH);
-    this.scratch = new Map(); this.sc = 1;
+    this.scratch = new Map(); this.sc = 1; this.maxChunks = this.cw * this.ch + 150;   // every overview chunk of the map fits, plus 150 close-up ones
   }
   t(x, y) { return (x < 0 || y < 0 || x >= this.W || y >= this.H) ? OUT : tileAt(this.g, x, y); }
   isWater(x, y) { const t = this.t(x, y); return !t || (t.terrain === 'water' && !t.bridge); }

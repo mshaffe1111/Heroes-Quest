@@ -1,4 +1,5 @@
 // Small DOM helpers and the shared pieces of the look: crests, framed dialogs, toasts.
+import { sfx } from './audio.js';
 export const $ = (s, r = document) => r.querySelector(s);
 export const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 export function h(tag, attrs = {}, ...kids) {
@@ -12,6 +13,7 @@ export function h(tag, attrs = {}, ...kids) {
   return el;
 }
 export const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+export const plural = (n, w, many = w + 's') => `${n} ${n === 1 ? w : many}`;
 export const num = (n) => Math.round(n).toLocaleString('en-US');
 
 // The eight realms as shown on banners and crests (names and colours match the engine's REALMS list; epithets are ours).
@@ -40,21 +42,22 @@ export function frame(children, { width = 640, clear = false, onClose = null, cl
 }
 export function openModal(content, { clear = false, dismiss = true, onClose = null } = {}) {
   const back = h('div', { class: 'back' + (clear ? ' clear' : '') }, content);
-  const m = { el: back, close() { const i = stack.indexOf(m); if (i >= 0) stack.splice(i, 1); back.remove(); if (onClose) onClose(); } };
+  const m = { el: back, dismiss, onEsc: null, close() { const i = stack.indexOf(m); if (i >= 0) stack.splice(i, 1); back.remove(); if (onClose) onClose(); } };
   if (dismiss) back.addEventListener('pointerdown', (e) => { if (e.target === back) m.close(); });
   modalsEl().append(back); stack.push(m); return m;
 }
 export const topModal = () => stack[stack.length - 1] ?? null;
 export const modalOpen = () => stack.length > 0;
 export function closeAllModals() { while (stack.length) stack[stack.length - 1].close(); }
-export function toast(text, kind = '') {
+export function toast(text, kind = '', silent = false) {
+  if (kind === 'bad' && !silent) sfx('error');
   const el = h('div', { class: 'toast ' + kind }, text); const box = document.getElementById('toast'); box.append(el);
   setTimeout(() => { el.style.transition = 'opacity .4s'; el.style.opacity = '0'; setTimeout(() => el.remove(), 420); }, 2600);
   while (box.children.length > 4) box.firstChild.remove();
 }
 export function confirmBox({ title, text, ok = 'Yes', cancel = 'Cancel', danger = false }) {
   return new Promise((res) => {
-    let m; const done = (v) => { m.close(); res(v); };
+    let m; const done = (v) => { res(v); m.close(); };      // FIX: resolve BEFORE close(): close() runs onClose, which resolves false first
     m = openModal(frame([h('h2', { style: { fontSize: '26px' } }, title), h('p', { class: 'sub', style: { marginTop: '12px' } }, text),
       h('div', { class: 'foot' }, h('button', { class: 'btn', onclick: () => done(false) }, cancel), h('button', { class: 'btn pri' + (danger ? '' : ''), onclick: () => done(true) }, ok))], { width: 480 }), { onClose: () => res(false) });
   });

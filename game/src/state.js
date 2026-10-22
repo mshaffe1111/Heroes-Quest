@@ -1,7 +1,7 @@
 // Shared game state and a few lookups every screen needs.
 import * as E from '../../engine/src/index.js';
 import { medalURL, realmHex } from './view.js';
-export const S = { g: null, me: null, view: null, assets: null, sel: null, meta: {}, busy: false, opts: { odds: true, autoNext: true, sound: true } };
+export const S = { g: null, me: null, view: null, assets: null, sel: null, meta: {}, busy: false, opts: { odds: true, autoNext: true, sound: true, music: true, replay: true, follow: true, moveMs: 120 } };
 export const hooks = {};            // functions set by the controller (refresh, openCity, ...) so screens can call back without importing it
 export const realmOf = (id) => (id ? S.g.realms.get(id) : null);
 export const colorOf = (id) => realmOf(id)?.color ?? 'beige';

@@ -216,7 +216,19 @@ export function fallBackTile(g, defenders, x, y, from) {
   return best && { x: best.x, y: best.y };
 }
 
-export function attack(g, ids, x, y, { retreat = null, fallBack = null } = {}) {
+// A screen can listen for every fight (the page uses it to replay the computer realms' attacks on the player). It only listens: nothing in the rules reads it.
+let battleHook = null;
+export function setBattleHook(fn) { battleHook = fn; }
+
+export function attack(g, ids, x, y, opts = {}) {
+  const attacker = groupOf(g, ids)[0]?.owner ?? null;
+  const defOwner = armiesAt(g, x, y).find((a) => a.owner !== attacker)?.owner ?? cityAt(g, x, y)?.owner ?? null;
+  const city = cityAt(g, x, y); const tile = tileAt(g, x, y);
+  const res = attackCore(g, ids, x, y, opts);
+  if (battleHook && res.ok && res.battle) { try { battleHook({ result: res, attacker, defender: defOwner, x, y, place: city?.name ?? null, tile }); } catch { /* a listener must never change a fight */ } }
+  return res;
+}
+function attackCore(g, ids, x, y, { retreat = null, fallBack = null } = {}) {
   const armies = groupOf(g, ids);
   if (armies.length > g.rules.stackLimit) return { ok: false, reason: 'group-too-big' };   // at most 8 attack at once
   const owner = armies[0].owner;

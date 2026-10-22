@@ -1,16 +1,17 @@
 // The framed dialogs: city, battle, capture, hero offer, doctrines, reports, saves, options, help, end of game.
 import * as E from '../../engine/src/index.js';
 import { S, hooks, theRealm, medalImg, realmOf, colorOf, unitName, realmName, myCities, economy, unitLine } from './state.js';
-import { h, frame, openModal, closeAllModals, toast, confirmBox, crest, num, sleep, esc, REALM_LOOK } from './ui.js';
+import { h, frame, openModal, closeAllModals, toast, confirmBox, crest, num, sleep, esc, REALM_LOOK, plural } from './ui.js';
 import { realmHex } from './view.js';
+import { sfx, syncMusic, pushBattle, popBattle, setScene, testSound } from './audio.js';
 
 const typeName = (t) => E.ARMIES[t].name;
 const pipsRow = (a) => { const max = E.maxPips(a, S.g.rules), cur = E.pipsOf(a, S.g.rules); return h('div', { class: 'pips' }, Array.from({ length: max }, (_, i) => h('i', { class: i < cur ? '' : 'w' }))); };
 
 // ===== city ====================================================================================================================
-export function openCity(cityId, { list = null } = {}) {
-  const g = S.g; const city = g.cities.get(cityId); if (!city) return;
-  let m; const mine = city.owner === S.me;
+export function openCity(cityId, { list = null, onClose = null } = {}) {
+  const g = S.g; const city = g.cities.get(cityId); if (!city) { onClose?.(); return; }
+  let m; let chained = false; const mine = city.owner === S.me;
   const build = () => {
     const eco = economy(); const armies = E.orderedArmiesAt(g, city.x, city.y, city.owner);
     const def = E.cityDefenceBonus(city) + (E.hasDoctrine(g.rules, city.owner, 'walls') ? 1 : 0);
@@ -26,9 +27,9 @@ export function openCity(cityId, { list = null } = {}) {
       builds.append(h('div', { class: 'bcard' + (on ? ' on' : '') },
         h('div', { class: 'h' }, h('img', { src: medalImg(t, city.owner, 96) }), h('div', {}, h('div', { class: 'n' }, d.name), h('div', { class: 'm' }, `Strength ${d.str} · Move ${d.move}`))),
         h('div', { class: 'd' }, letters), on ? h('div', {}, h('div', { class: 'prog' }, h('i', { style: { width: `${Math.round(100 * (city.building.progress / turns))}%` } })),
-          h('div', { style: { font: '600 12px Inter', color: '#9fdcb1', marginTop: '4px' } }, `Turn ${city.building.progress} of ${turns} · ready in ${Math.max(0, turns - city.building.progress)} turns`)) : null,
-        h('div', { class: 'pr' }, h('span', {}, `${E.priceOf(d, g.rules)} gp · ${turns} turns`),
-          mine ? h('button', { class: 'btn sm', onclick: () => { if (on) city.building = null; else E.setProduction(g, city.id, t); render(); hooks.refresh(); } }, on ? 'Stop' : 'Build this') : null)));
+          h('div', { style: { font: '600 12px Inter', color: '#9fdcb1', marginTop: '4px' } }, `Turn ${city.building.progress} of ${turns} · ready in ${plural(Math.max(0, turns - city.building.progress), 'turn')}`)) : null,
+        h('div', { class: 'pr' }, h('span', {}, `${E.priceOf(d, g.rules)} gp · ${plural(turns, 'turn')}`),
+          mine ? h('button', { class: 'btn sm', onclick: () => { if (on) city.building = null; else { E.setProduction(g, city.id, t); sfx('built'); } render(); hooks.refresh(); } }, on ? 'Stop' : 'Build this') : null)));
     }
     const garr = h('div', { class: 'garr' }, armies.length ? armies.slice(0, 32).map((a) => h('div', { class: 'chip', title: `${unitName(a)} · ${unitLine(a)}` }, h('img', { src: medalImg(a.type, a.owner, 80) }))) : h('span', { class: 'sub' }, 'No armies here.'));
     const others = myCities().filter((c) => c.id !== city.id);
@@ -44,13 +45,13 @@ export function openCity(cityId, { list = null } = {}) {
     const idx = (list ?? myCities().map((c) => c.id)); const k = idx.indexOf(city.id);
     const foot = h('div', { class: 'foot', style: { justifyContent: 'space-between' } },
       h('div', { style: { font: '600 13px Inter', color: '#c7d6e8' } }, mine ? `Gold ${num(S.g.realms.get(S.me).gold)} · Income ` : '', mine ? h('b', { style: { color: eco.net >= 0 ? '#7fe0a4' : '#ff9a8a' } }, `${eco.net >= 0 ? '+' : ''}${eco.net} a turn`) : ''),
-      h('div', { style: { display: 'flex', gap: '10px' } }, mine && idx.length > 1 ? h('button', { class: 'btn', onclick: () => { const n = idx[(k + 1) % idx.length]; m.close(); openCity(n, { list }); } }, 'Next city') : null, h('button', { class: 'btn pri', onclick: () => m.close() }, 'Done')));
+      h('div', { style: { display: 'flex', gap: '10px' } }, mine && idx.length > 1 ? h('button', { class: 'btn', onclick: () => { const n = idx[(k + 1) % idx.length]; chained = true; m.close(); openCity(n, { list, onClose }); } }, 'Next city') : null, h('button', { class: 'btn pri', onclick: () => m.close() }, 'Done')));
     const f = frame([head, h('div', { class: 'citygrid' }, h('div', {}, mine ? h('div', { class: 'sec', style: { marginTop: 0 } }, 'Building · one army at a time') : h('div', { class: 'sec', style: { marginTop: 0 } }, 'This city can build'), builds,
       mine ? h('div', { class: 'hint' }, `${city.name} can build ${city.production.length} army type${city.production.length === 1 ? '' : 's'}, the most a city can hold is 4.`) : null), right), foot], { width: 1040, onClose: () => m.close() });
     return f;
   };
   const render = () => m.el.replaceChildren(build());
-  m = openModal(build(), { onClose: () => hooks.refresh() });
+  m = openModal(build(), { onClose: () => { hooks.refresh(); if (!chained) onClose?.(); } });
 }
 function addTypeDialog(city, back) {
   const g = S.g; const realm = g.realms.get(S.me); let m;
@@ -58,7 +59,7 @@ function addTypeDialog(city, back) {
   const full = city.production.length >= 4; let replace = full ? city.production[0] : null;
   const draw = () => {
     const rows = types.map((t) => { const d = E.ARMIES[t]; const cost = E.establishCost(t, g.rules); const ok = realm.gold >= cost;
-      return h('div', { class: 'bcard', style: { minHeight: 0 } }, h('div', { class: 'h' }, h('img', { src: medalImg(t, S.me, 80), style: { width: '40px', height: '40px' } }), h('div', {}, h('div', { class: 'n', style: { fontSize: '15px' } }, d.name), h('div', { class: 'm' }, `S ${d.str} · M ${d.move} · ${E.priceOf(d, g.rules)} gp · ${d.build} turns`))),
+      return h('div', { class: 'bcard', style: { minHeight: 0 } }, h('div', { class: 'h' }, h('img', { src: medalImg(t, S.me, 80), style: { width: '40px', height: '40px' } }), h('div', {}, h('div', { class: 'n', style: { fontSize: '15px' } }, d.name), h('div', { class: 'm' }, `S ${d.str} · M ${d.move} · ${E.priceOf(d, g.rules)} gp · ${plural(d.build, 'turn')}`))),
         h('div', { class: 'pr' }, h('span', {}, `Cost to establish ${num(cost)} gp`), h('button', { class: 'btn sm', disabled: !ok, onclick: () => { const r = E.addProductionType(g, S.me, city.id, t, replace); if (!r.ok) { toast('That did not work: ' + r.reason.replaceAll('-', ' '), 'bad'); return; } toast(`${city.name} can now build ${d.name}.`, 'good'); m.close(); back(); hooks.refresh(); } }, 'Establish'))); });
     return frame([h('h2', { style: { fontSize: '26px' } }, 'Add an army type'), h('p', { class: 'sub' }, `${city.name} builds ${city.production.map(typeName).join(', ')}. You have ${num(realm.gold)} gold.`),
       full ? h('div', {}, h('div', { class: 'sec' }, 'The city is full. Replace which one?'), h('select', { onchange: (e) => { replace = e.target.value; } }, ...city.production.map((t) => h('option', { value: t, selected: t === replace }, typeName(t))))) : null,
@@ -69,7 +70,7 @@ function addTypeDialog(city, back) {
 
 // ===== battle ==================================================================================================================
 /** Replays a finished battle fight by fight. Resolves when the player has seen (or skipped) it. */
-export function showBattle(result, { attacker, defender, place, tile }) {
+export function showBattle(result, { attacker, defender, place, tile, theirs = false }) {
   return new Promise((resolve) => {
     const b = result.battle; const g = S.g; let skip = false; let m;
     const attS = new Map(), defS = new Map();
@@ -79,13 +80,14 @@ export function showBattle(result, { attacker, defender, place, tile }) {
     const arena = h('div', { class: 'arena' }); const log = h('div', { class: 'log' });
     const chips = (list, side) => h('div', { class: 'row' }, list.map((a) => { const c = h('div', { class: 'chip', 'data-id': a.id, title: unitName(a) }, h('img', { src: medalImg(a.type, a.owner, 80) })); return c; }));
     const duel = h('div', { class: 'duel' }); const sideA = h('div', { class: 'side' }, h('div', { class: 'sec', style: { margin: '0 0 4px' } }, `${realmName(attacker)} attacks`), chips(attOrder, 'a')); const sideD = h('div', { class: 'side r' }, h('div', { class: 'sec', style: { margin: '0 0 4px' } }, `${place ? place + ' · ' : ''}${realmName(defender)} defends`), chips(defOrder, 'd'));
-    arena.append(sideA, duel, sideD);
+    arena.append(sideA, duel, sideD); sfx('horn'); pushBattle();
     const title = h('h2', { style: { fontSize: '28px' } }, place ? `Battle at ${place}` : 'Battle');
-    const skipBtn = h('button', { class: 'btn', onclick: () => { skip = true; } }, 'Skip'); const doneBtn = h('button', { class: 'btn pri', style: { display: 'none' }, onclick: () => { m.close(); resolve(); } }, 'Continue');
-    const f = frame([h('div', { class: 'eyebrow' }, 'The armies meet'), title, arena, log, h('div', { class: 'foot' }, skipBtn, doneBtn)], { width: 920, closeButton: false });
-    m = openModal(f, { dismiss: false });
+    const skipBtn = h('button', { class: 'btn', onclick: () => { skip = true; } }, 'Skip'); const doneBtn = h('button', { class: 'btn pri', style: { display: 'none' }, onclick: () => { popBattle(); m.close(); resolve(); } }, 'Continue');
+    const f = frame([h('div', { class: 'eyebrow' }, theirs ? `${realmName(attacker)} attacked you` : 'The armies meet'), title, arena, log, h('div', { class: 'foot' }, skipBtn, doneBtn)], { width: 920, closeButton: false });
+    m = openModal(f, { dismiss: false }); m.onEsc = () => { skip = true; };      // FIX: Esc = Skip (was: closed the modal and left the promise pending forever)
     const chipOf = (id) => f.querySelector(`.chip[data-id="${id}"]`);
     (async () => {
+      try {
       let n = 0;
       for (const fight of b.fights) {
         n++; const ea = chipOf(fight.attacker.id), ed = chipOf(fight.defender.id); f.querySelectorAll('.chip.front').forEach((c) => c.classList.remove('front')); ea?.classList.add('front'); ed?.classList.add('front');
@@ -94,14 +96,16 @@ export function showBattle(result, { attacker, defender, place, tile }) {
         duel.replaceChildren(h('div', { class: 'big' }, h('div', {}, h('div', { class: 'sbig' }, fight.attacker.strength), h('div', {}, ta)), h('div', { class: 'vs' }, 'vs'), h('div', {}, h('div', { class: 'sbig' }, fight.defender.strength), h('div', {}, td))),
           fight.stackBonus.attacker || fight.stackBonus.defender ? h('div', { style: { font: '500 12px Inter', color: '#9fb4cc' } }, `Stack bonus: you +${fight.stackBonus.attacker} · they +${fight.stackBonus.defender}`) : null);
         if (!skip) await sleep(650);
-        const loser = fight.winner === 'attacker' ? ed : ea; loser?.classList.add('dead');
+        const loser = fight.winner === 'attacker' ? ed : ea; loser?.classList.add('dead'); sfx('clash', fight.attacker.strength + fight.defender.strength > 10); setTimeout(() => sfx('fall'), 180);
         log.append(h('div', {}, h('b', {}, `Duel ${n}: `), `${fight.winner === 'attacker' ? ta : td} beats ${fight.winner === 'attacker' ? td : ta} (${fight.attacker.strength} v ${fight.defender.strength}).`)); log.scrollTop = 1e6;
         if (!skip) await sleep(450);
       }
       f.querySelectorAll('.chip.front').forEach((c) => c.classList.remove('front'));
-      const won = b.winner === 'attacker';
-      duel.replaceChildren(h('div', { class: 'vs', style: { fontSize: '20px' } }, b.retreated ? 'Called off' : won ? 'Victory' : 'Defeat'), h('div', {}, `${b.dead.attackers.length} lost · ${b.dead.defenders.length} fell`));
-      skipBtn.style.display = 'none'; doneBtn.style.display = '';
+      const won = theirs ? b.winner === 'defender' : b.winner === 'attacker';
+      const lostMine = theirs ? b.dead.defenders.length : b.dead.attackers.length, lostTheirs = theirs ? b.dead.attackers.length : b.dead.defenders.length;
+      duel.replaceChildren(h('div', { class: 'vs', style: { fontSize: '20px' } }, b.retreated ? 'Called off' : won ? 'Victory' : 'Defeat'), h('div', {}, `${lostMine} of yours lost · ${lostTheirs} of theirs fell`));
+      sfx(won && !b.retreated ? 'victory' : 'defeat'); skipBtn.style.display = 'none'; doneBtn.style.display = '';
+      } catch (e) { console.error('battle replay failed', e); skipBtn.style.display = 'none'; doneBtn.style.display = ''; }      // FIX: never leave the player with a modal that cannot be closed
     })();
   });
 }
@@ -124,7 +128,7 @@ export function heroOfferDialog(offer) {
     let m; const done = (v) => { m.close(); resolve(v); }; const g = S.g; const city = g.cities.get(offer.cityId);
     m = openModal(frame([h('div', { class: 'eyebrow' }, 'A stranger at the gate'), h('h2', {}, `${offer.name} offers a sword`), h('p', { class: 'sub', style: { margin: '10px 0 14px' } }, `A hero has come to ${city.name} and will join your cause for ${offer.cost} gold. Heroes grow stronger with every battle and can lead the armies around them.`),
       h('div', { style: { display: 'flex', gap: '14px', alignItems: 'center' } }, h('img', { src: medalImg('hero', S.me, 96), style: { width: '70px' } }), h('div', { class: 'sub' }, `You have ${num(g.realms.get(S.me).gold)} gold.`)),
-      h('div', { class: 'foot' }, h('button', { class: 'btn', onclick: () => done(false) }, 'Not now'), h('button', { class: 'btn pri', onclick: () => done(true) }, `Hire for ${offer.cost} gold`))], { width: 520, closeButton: false }), { dismiss: false });
+      h('div', { class: 'foot' }, h('button', { class: 'btn', onclick: () => done(false) }, 'Not now'), h('button', { class: 'btn pri', onclick: () => done(true) }, `Hire for ${offer.cost} gold`))], { width: 520, closeButton: false }), { dismiss: false }); m.onEsc = () => done(false);
   });
 }
 
@@ -176,9 +180,9 @@ export function openHelp() {
     h('div', { class: 'foot' }, h('button', { class: 'btn pri', onclick: () => m.close() }, 'Close'))], { width: 760, onClose: () => m.close() }));
 }
 export function openOptions() {
-  let m; const tog = (key, title, text) => { const b = h('button', { class: 'sw' + (S.opts[key] ? ' on' : ''), onclick: () => { S.opts[key] = !S.opts[key]; b.classList.toggle('on', S.opts[key]); try { localStorage.setItem('hq-opts', JSON.stringify(S.opts)); } catch {} hooks.refresh(); } });
+  let m; const tog = (key, title, text) => { const b = h('button', { class: 'sw' + (S.opts[key] ? ' on' : ''), onclick: () => { S.opts[key] = !S.opts[key]; b.classList.toggle('on', S.opts[key]); try { localStorage.setItem('hq-opts', JSON.stringify(S.opts)); } catch {} syncMusic(); hooks.refresh(); } });
     return h('div', { class: 'toggle' }, h('div', {}, h('b', {}, title), h('span', {}, text)), b); };
-  m = openModal(frame([h('h2', { style: { fontSize: '28px', marginBottom: '14px' } }, 'Options'), tog('odds', 'Combat advisor', 'Show your chance of winning when you point an army at an enemy.'), tog('autoNext', 'Jump to the next army', 'After an army has moved, select the next one that still has orders.'),
+  m = openModal(frame([h('h2', { style: { fontSize: '28px', marginBottom: '14px' } }, 'Options'), tog('odds', 'Combat advisor', 'Show your chance of winning when you point an army at an enemy.'), tog('autoNext', 'Jump to the next army', 'After an army has moved, select the next one that still has orders.'), tog('sound', 'Sound effects', 'Marching, fighting, bells and horns.'), tog('music', 'Music', 'A slow, quiet score that plays while you think.'), tog('replay', 'Replay attacks on you', 'Show each fight when a computer realm attacks you during its turn.'),
     h('div', { class: 'foot' }, h('button', { class: 'btn pri', onclick: () => m.close() }, 'Done'))], { width: 560, onClose: () => m.close() }));
 }
 
@@ -205,14 +209,18 @@ export function openSaveLoad(mode = 'save') {
 
 // ===== end of game =============================================================================================================
 export function openEnd(status) {
+  setScene(status.victor === S.me ? 'victory' : 'defeat');
   const g = S.g; const rows = E.standings(g, status.victor); const won = status.victor === S.me;
   let title = won ? 'Victory' : status.reason === 'conceded' ? 'You gave up' : status.reason === 'eliminated' ? 'Your realm has fallen' : `${realmName(status.victor)} rules the land`;
   const sub = won ? `The ${realmName(S.me)} hold more than half of all the cities. The other realms lay down their arms.` : status.reason === 'conceded' ? 'The war goes on without you.' : status.reason === 'eliminated' ? 'No cities and no armies are left to your name.' : 'They hold more than half of all the cities.';
   const table = h('table', { class: 't' }, h('thead', {}, h('tr', {}, ['', 'Realm', 'Cities', 'Most cities', 'Taken', 'Lost', 'Battles won', 'Armies lost'].map((c) => h('th', {}, c)))),
     h('tbody', {}, rows.map((r, i) => h('tr', {}, h('td', { style: { color: '#f3dc9a' } }, i + 1), h('td', {}, h('span', { class: 'dot', style: { background: realmHex(realmOf(r.id)) ?? '#999' } }), r.name + (r.id === S.me ? ' (you)' : '') + (r.winner ? ' ★' : '')), h('td', {}, r.citiesNow), h('td', {}, r.mostCities), h('td', {}, r.citiesTaken), h('td', {}, r.citiesLost), h('td', {}, r.battlesWon), h('td', {}, r.armiesLost)))));
   const big = E.biggestBattle(g, S.me);
-  const m = openModal(frame([h('div', { class: 'eyebrow' }, `After ${g.turn} turns`), h('h2', { style: { fontSize: '42px' } }, title), h('p', { class: 'sub', style: { margin: '8px 0 16px' } }, sub), table,
+  const m = openModal(frame([h('div', { class: 'eyebrow' }, `After ${plural(g.turn, 'turn')}`), h('h2', { style: { fontSize: '42px' } }, title), h('p', { class: 'sub', style: { margin: '8px 0 16px' } }, sub), table,
     big ? h('p', { class: 'sub', style: { marginTop: '14px' } }, `Your biggest battle: turn ${big.turn}${big.place ? ' at ' + big.place : ''}, ${big.attackers} against ${big.defenders}.`) : null,
-    h('div', { class: 'foot' }, h('button', { class: 'btn', onclick: () => { m.close(); } }, 'Look at the map'), h('button', { class: 'btn pri', onclick: () => { m.close(); hooks.toTitle(); } }, 'Main menu'))], { width: 920, closeButton: false }), { dismiss: false });
+    h('div', { class: 'foot' }, h('button', { class: 'btn', onclick: () => { m.close(); } }, 'Look at the map'), h('button', { class: 'btn pri', onclick: () => { m.close(); hooks.toTitle(); } }, 'Main menu'))], { width: 920, closeButton: false }), { dismiss: false }); m.onEsc = () => m.close();
 }
-export async function confirmEndTurn(idle) { return confirmBox({ title: 'End your turn?', text: `${idle} ${idle === 1 ? 'army has' : 'armies have'} not been given orders. Use Done or Fortify to rest them, or end the turn anyway.`, ok: 'End turn', cancel: 'Keep playing' }); }
+export async function confirmEndTurn(idle, idleCities = 0) {
+  const parts = []; if (idle) parts.push(`${idle} ${idle === 1 ? 'army has' : 'armies have'} not been given orders. Use Done or Fortify to rest them.`); if (idleCities) parts.push(`${idleCities} ${idleCities === 1 ? 'city is' : 'cities are'} not building anything.`);
+  return confirmBox({ title: 'End your turn?', text: parts.join(' ') + ' End the turn anyway?', ok: 'End turn', cancel: 'Keep playing' });
+}
