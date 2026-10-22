@@ -43,12 +43,35 @@ function skeleton() {
     menu('Options', [['Options…', () => D.openOptions()]]),
     menu('Help', [['How to play', () => D.openHelp()]]),
     h('span', { class: 'sp' }), fsButton('bar'), h('span', { class: 'turn', id: 'turnlbl' }), h('span', { class: 'realm', id: 'realmlbl' }));
+  const ic = (n) => h('img', { src: `play/assets/ui/icons/${n}.svg`, alt: '' });
+  const cmd = (icon, label, key, fn, id) => h('button', { class: 'btn cmd', id: id ?? null, onclick: () => { if (!S.busy) fn(); } }, ic(icon), h('span', {}, label), key ? h('kbd', {}, key) : null);
+  const openHere = () => { const c = S.sel && E.cityAt(S.g, S.sel.x, S.sel.y); if (c && c.owner === S.me) D.openCity(c.id); else D.openCities(); };
   const stage = h('div', { id: 'stage' },
-    h('div', { id: 'mapwrap' }, h('canvas', { id: 'map' }), h('canvas', { id: 'minimap', width: 220, height: 140 }), h('div', { id: 'toast' })),
-    h('div', { id: 'panel' }), h('div', { id: 'bottom' }, h('div', { id: 'cards' }), h('div', { id: 'endwrap' }, h('div', { id: 'miniord' }, h('button', { class: 'btn sm', onclick: () => order('fortify') }, 'Fortify'), h('button', { class: 'btn sm', onclick: () => order('done') }, 'Done'), h('button', { class: 'btn sm', onclick: () => nextArmy() }, 'Next'), h('button', { class: 'btn sm', onclick: () => { const c = S.sel && E.cityAt(S.g, S.sel.x, S.sel.y); if (c) D.openCity(c.id); else toast('Select an army inside a city first.'); } }, 'City')), h('div', { id: 'msg' }), h('button', { class: 'btn pri', id: 'endbtn', onclick: () => endTurnClick() }, 'End turn'))));
+    h('div', { id: 'mapwrap' }, h('canvas', { id: 'map' }), h('div', { id: 'toast' }), h('div', { class: 'zoombtns' }, h('button', { class: 'btn ibtn', 'aria-label': 'Zoom in', onclick: () => zoom(1.25) }, ic('zoomin')), h('button', { class: 'btn ibtn', 'aria-label': 'Zoom out', onclick: () => zoom(0.8) }, ic('zoomout')))),
+    h('div', { id: 'status' }, h('div', { id: 'msg' })),
+    h('div', { id: 'bottom' }, h('div', { id: 'cards' }), h('div', { id: 'gmove' }, h('small', {}, 'Group move'), h('b', { id: 'gmoveval' }, '–'), h('span', {}, 'The slowest army sets it'))),
+    h('aside', { id: 'side' },
+      h('div', { id: 'minislot' }, h('canvas', { id: 'minimap', width: 440, height: 280 }), h('button', { class: 'btn sm', id: 'wholemap', onclick: () => S.view.fit() }, ic('map'), 'Whole map', h('kbd', {}, 'M'))),
+      h('div', { id: 'realmstrip' }),
+      h('div', { id: 'cmds' },
+        cmd('next', 'Next army', 'N', () => nextArmy()), cmd('fortify', 'Fortify', 'F', () => order('fortify')), cmd('done', 'Done', 'D', () => order('done')), cmd('wake', 'Wake', 'W', () => order('wake'), 'cmdwake'),
+        cmd('city', 'Open city', 'Enter', openHere, 'cmdcity'), cmd('list', 'Your cities', '', () => D.openCities()), cmd('disband', 'Disband', 'Del', () => order('disband'), 'cmddisband'), cmd('centre', 'Centre', 'C', () => centreSel()),
+        cmd('zoomin', 'Zoom in', '+', () => zoom(1.25)), cmd('zoomout', 'Zoom out', '−', () => zoom(0.8)), cmd('map', 'Whole map', 'M', () => S.view.fit()), cmd('scroll', 'Reports', '', () => D.openRealms())),
+      h('div', { id: 'panel' }),
+      h('div', { id: 'events' }),
+      h('div', { id: 'endwrap' }, h('div', { id: 'miniord' }, h('button', { class: 'btn sm', onclick: () => order('fortify') }, 'Fortify'), h('button', { class: 'btn sm', onclick: () => order('done') }, 'Done'), h('button', { class: 'btn sm', onclick: () => nextArmy() }, 'Next'), h('button', { class: 'btn sm', onclick: openHere }, 'City')),
+        h('button', { class: 'btn pri', id: 'endbtn', onclick: () => endTurnClick() }, ic('hourglass_dark'), 'End turn', h('kbd', {}, 'E')))));
   app.append(h('div', { id: 'game', class: 'hidden', style: { position: 'absolute', inset: 0 } }, top, stage), h('div', { id: 'modals' }));
   document.addEventListener('pointerdown', (e) => { if (!e.target.closest('.mi')) $$('.mi.open').forEach((x) => x.classList.remove('open')); });
   document.addEventListener('keydown', onKey);
+  placeLayout(); addEventListener('resize', placeLayout);
+}
+/** Wide screens: the small map and End turn live in the side column. Narrow screens: the side column is hidden, so they move over and under the map. */
+function placeLayout() {
+  const narrow = innerWidth <= 860; const mini = $('#minimap'), end = $('#endwrap');
+  if (narrow) { if (mini.parentElement.id !== 'mapwrap') $('#mapwrap').append(mini); if (end.parentElement.id !== 'bottom') $('#bottom').append(end); }
+  else { if (mini.parentElement.id !== 'minislot') $('#minislot').prepend(mini); if (end.parentElement.id !== 'side') $('#side').append(end); }
+  S.view?.resize?.(); S.view && (S.view.dirty = true);
 }
 
 // ======================================================================================================================
@@ -91,7 +114,8 @@ async function startTurn() {
     else if (e.type === 'woke') notes.push(`${e.armies.length} fortified ${e.armies.length === 1 ? 'army wakes' : 'armies wake'}: an enemy is near.`);
     else if (e.type === 'vector-arrived') notes.push(`New armies arrived in ${g.cities.get(e.city).name}.`);
   }
-  const money = ev.find((e) => e.type === 'money'); if (money && money.gold < 0) notes.push('You are out of gold. Armies will desert if you stay in debt.');
+  const money = ev.find((e) => e.type === 'money'); if (money && money.gold < 0) notes.push('You are out of gold. Your cities cannot start new armies until your gold is above zero.');
+  S.notes = notes.slice(); renderEvents();
   notes.slice(0, 4).forEach((t, i) => setTimeout(() => toast(t, t.includes('cannot') || t.includes('out of gold') ? 'bad' : ''), i * 250));
   selectNextOnStart();
   const idleCities = myCities().filter((c) => !c.building).length; const hasArmies = [...g.armies.values()].some((q) => q.owner === S.me && q.x != null);
@@ -313,34 +337,38 @@ async function doAttack(ids, x, y) {
 function refresh() {
   if (!S.g) return; const g = S.g; const eco = economy(); const realm = g.realms.get(S.me);
   $('#turnlbl').textContent = `Turn ${g.turn}`;
-  S.view?.touch(); renderPanel(eco, realm); renderCards(); renderEnd();
+  S.view?.touch(); renderPanel(eco, realm); renderCards(); renderEnd(); renderEvents();
 }
 function renderPanel(eco, realm) {
   const g = S.g; const p = $('#panel'); const arm = selArmies(); const kids = [];
-  kids.push(h('h4', {}, 'Selected'));
   if (arm.length) {
-    const top = arm[arm.length - 1]; const heroes = arm.filter(E.isHero).length; const mp = arm.length ? E.limitingMovePoints(arm) : 0; const up = arm.reduce((s, a) => s + E.armyUpkeep(a, g.rules), 0);
+    const top = arm[arm.length - 1]; const heroes = arm.filter(E.isHero).length; const mp = E.limitingMovePoints(arm); const up = arm.reduce((s, a) => s + E.armyUpkeep(a, g.rules), 0);
     const c = E.cityAt(g, S.sel.x, S.sel.y);
     const title = arm.length === 1 ? unitName(arm[0]) : `${arm.length} armies`;
     kids.push(h('div', { class: 'selbox' }, h('img', { src: medalImg(arm[0].afloat ? 'navy' : top.type, S.me, 128) }), h('div', {}, h('div', { class: 't' }, title),
-      h('div', { class: 's' }, c ? `In ${c.name}` : tileName(S.sel.x, S.sel.y), h('br'), `${heroes ? heroes + ' hero · ' : ''}Moves left ${mp}`, h('br'), `Upkeep ${up ? '−' + up : '0'} gold a turn`))));
-    kids.push(h('h4', {}, 'Orders'));
-    const ob = h('div', { class: 'orders' },
-      h('button', { class: 'btn sm', onclick: () => order('fortify') }, 'Fortify'), h('button', { class: 'btn sm', onclick: () => order('done') }, 'Done'),
-      h('button', { class: 'btn sm', onclick: () => order('wake'), disabled: !arm.some((a) => a.fortified || a.done) }, 'Wake up'), h('button', { class: 'btn sm', onclick: () => nextArmy() }, 'Next army'),
-      c && c.owner === S.me ? h('button', { class: 'btn sm', style: { gridColumn: '1/3' }, onclick: () => D.openCity(c.id) }, `Open ${c.name}`) : null,
-      arm.some((a) => a.goal) ? h('button', { class: 'btn sm', style: { gridColumn: '1/3' }, onclick: () => { arm.forEach((a) => delete a.goal); toast('March cancelled.'); refresh(); } }, 'Cancel march') : null);
-    kids.push(ob);
-    kids.push(h('p', { class: 'hint' }, S.path ? '' : 'Click a square to plan a route. Click it again to go.'));
+      h('div', { class: 's' }, c ? `In ${c.name}` : tileName(S.sel.x, S.sel.y), ` · ${heroes ? heroes + ' hero · ' : ''}moves ${mp} · upkeep ${up ? '−' + up : '0'}`))));
+    if (arm.some((a) => a.goal)) kids.push(h('button', { class: 'btn sm', style: { marginTop: '8px' }, onclick: () => { arm.forEach((a) => delete a.goal); toast('March cancelled.'); refresh(); } }, 'Cancel march'));
     if (S.path) kids.push(routeBox(S.path));
-  } else {
-    kids.push(h('p', { class: 'hint' }, 'Click one of your armies, or press N for the next one that is waiting for orders. Click one of your cities to choose what it builds.'));
-  }
-  kids.push(h('div', { class: 'grow' }));
-  kids.push(h('h4', {}, 'Your realm'));
-  kids.push(h('div', { class: 'kv' }, 'Gold', h('b', { class: 'g' }, num(realm.gold))), h('div', { class: 'kv' }, 'Income', h('b', { class: 'p' }, '+' + eco.income)), h('div', { class: 'kv' }, 'Upkeep', h('b', { class: 'n' }, '−' + eco.upkeep)),
-    h('div', { class: 'kv' }, 'Cities', h('b', {}, `${myCities().length} of ${[...g.cities.values()].filter((c) => !c.razed).length}`)));
+  } else kids.push(h('p', { class: 'hint' }, 'Click one of your armies, or press N for the next one waiting for orders. Click one of your cities to choose what it builds.'));
   p.replaceChildren(...kids);
+  // command tiles that need something to act on
+  const c = S.sel && E.cityAt(g, S.sel.x, S.sel.y);
+  const set = (id, off) => { const b = $(id); if (b) b.disabled = !!off; };
+  set('#cmdwake', !arm.some((a) => a.fortified || a.done)); set('#cmddisband', !arm.length); set('#cmdcity', false);
+  $('#cmdcity span').textContent = c && c.owner === S.me ? `Open ${c.name}` : 'Open city';
+  // the realm strip
+  $('#realmstrip').replaceChildren(
+    h('div', {}, h('small', {}, 'Gold'), h('b', {}, num(realm.gold))), h('div', {}, h('small', {}, 'Income'), h('b', { class: 'p' }, '+' + eco.income)),
+    h('div', {}, h('small', {}, 'Upkeep'), h('b', { class: 'n' }, '−' + eco.upkeep)), h('div', {}, h('small', {}, 'Cities'), h('b', {}, `${myCities().length}`, h('em', {}, ` / ${[...g.cities.values()].filter((q) => !q.razed).length}`))));
+  // group move under the army cards
+  $('#gmoveval').textContent = arm.length ? String(E.limitingMovePoints(arm)) : '–';
+}
+function renderEvents() {
+  const el = $('#events'); if (!el) return; const notes = S.notes ?? []; const idle = S.g ? E.idleArmies(S.g, S.me).length : 0;
+  const tone = (t) => (/cannot|out of gold|lost|fell|attacked/.test(t) ? 'bad' : /finished|arrived|healed|took/.test(t) ? 'good' : '');
+  el.replaceChildren(h('div', { class: 'eh' }, h('img', { src: 'play/assets/ui/icons/bell.svg', alt: '' }), h('span', {}, 'This turn')),
+    ...(notes.length ? notes.slice(0, 5).map((t) => h('div', { class: 'ev ' + tone(t) }, t)) : [h('div', { class: 'ev dim' }, 'Nothing new this turn.')]),
+    h('div', { class: 'ef' }, h('img', { src: 'play/assets/ui/icons/flag.svg', alt: '' }), h('span', {}, idle ? `${idle} ${idle === 1 ? 'stack can' : 'stacks can'} still move` : 'Every army has its orders'), idle ? h('kbd', {}, 'N for the next') : null));
 }
 function tileName(x, y) { const t = E.tileAt(S.g, x, y); return t.bridge ? 'On a bridge' : t.terrain === 'water' ? 'At sea' : ({ open: t.road ? 'On a road' : 'Open ground', woods: 'In the woods', hills: 'In the hills', mountain: 'In the mountains', swamp: 'In a swamp' }[t.terrain] ?? 'Open ground'); }
 function routeBox(p) {

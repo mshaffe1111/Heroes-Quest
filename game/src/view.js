@@ -253,8 +253,8 @@ export class MapView {
     const m = this.minimapEl; if (!m || !this.minimapBase) return; const g = this.g; const x = m.getContext('2d'); const w = m.width, h = m.height;
     x.imageSmoothingEnabled = true; x.drawImage(this.minimapBase, 0, 0, w, h);
     const sx = w / g.width, sy = h / g.height;
-    for (const c of g.cities.values()) { const realm = c.owner ? g.realms.get(c.owner) : null; if (this.fv && !this.fv.cities.find((q) => q.id === c.id)) continue; x.fillStyle = realmHex(realm) ?? '#d8c9a0'; x.fillRect(c.x * sx - 1.5, c.y * sy - 1.5, 4, 4); x.strokeStyle = '#0b1320'; x.lineWidth = 0.8; x.strokeRect(c.x * sx - 1.5, c.y * sy - 1.5, 4, 4); }
+    for (const c of g.cities.values()) { const realm = c.owner ? g.realms.get(c.owner) : null; if (this.fv && !this.fv.cities.find((q) => q.id === c.id)) continue; const q = Math.max(4, w / 80); x.fillStyle = realmHex(realm) ?? '#d8c9a0'; x.fillRect(c.x * sx - q / 2, c.y * sy - q / 2, q, q); x.strokeStyle = '#0b1320'; x.lineWidth = 1; x.strokeRect(c.x * sx - q / 2, c.y * sy - q / 2, q, q); }
     if (this.fv) { x.drawImage(this.fogCv, 0, 0, w, h); }
-    const c = this.cam; const vx = c.x / TP * sx, vy = c.y / TP * sy, vw = this.w / c.z / TP * sx, vh = this.h / c.z / TP * sy; x.strokeStyle = '#fff'; x.lineWidth = 1.5; x.strokeRect(vx, vy, vw, vh);
+    const c = this.cam; const vx = c.x / TP * sx, vy = c.y / TP * sy, vw = this.w / c.z / TP * sx, vh = this.h / c.z / TP * sy; x.strokeStyle = '#fff3c9'; x.lineWidth = Math.max(1.5, w / 200); x.strokeRect(vx, vy, vw, vh);
   }
 }
