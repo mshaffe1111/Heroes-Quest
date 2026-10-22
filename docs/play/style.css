@@ -503,3 +503,20 @@ body.pp.nomini #mapwrap{margin-top:-6px}
 .bt .btfoot .sp{flex:1}.bt .spd{display:flex;align-items:center;gap:8px}.bt .spd small{font:700 10px var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--gilt)}
 .bt .btfoot .btn{min-height:46px}
 @media (max-width:520px){.bt .btfoot .btn{flex:1 1 100%}.bt .chips{grid-template-columns:repeat(4,minmax(0,1fr))}.bt .md{width:52px;height:52px}}
+/* army strip on phones: name under each medal, and an Info button */
+body.pl #bottom,body.pp #bottom{height:auto;min-height:66px}
+body.pl .ucard>div:last-child,body.pp .ucard>div:last-child{display:block}
+body.pl .ucard .st,body.pp .ucard .st{display:none!important}
+body.pl .ucard .nm,body.pp .ucard .nm{max-width:64px;font:700 10px/1.15 var(--body);letter-spacing:0;text-align:center;color:var(--parch);margin-top:2px}
+body.pl .ucard,body.pp .ucard{display:flex;flex-direction:column;align-items:center;-webkit-touch-callout:none;user-select:none}
+.uinfo{flex:none;align-self:center;display:flex;flex-direction:column;align-items:center;gap:2px;width:52px;padding:6px 0;border:0;border-radius:3px;background:rgba(0,0,0,.3);box-shadow:inset 0 0 0 1px var(--gl-lo);color:var(--gl-hi);cursor:pointer}
+.uinfo b{display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--gl);color:#20160a;font:800 15px Georgia,serif;font-style:italic}
+.uinfo span{font:700 10px var(--display);letter-spacing:.1em;text-transform:uppercase}
+/* the army info sheet */
+.acards{display:flex;flex-direction:column;gap:10px}
+.acard{padding:12px;border-radius:3px;background:rgba(5,8,14,.7);box-shadow:inset 0 0 0 1px rgba(0,0,0,.8)}
+.acard.focus{box-shadow:inset 0 0 0 2px var(--gl)}.acard.hero .ahead img{box-shadow:0 0 0 3px #e6c46c;border-radius:50%}
+.ahead{display:flex;align-items:center;gap:12px;margin-bottom:8px}.ahead img{width:56px;height:56px;flex:none}
+.ahead b{display:block;font:700 17px var(--display);color:var(--gl-hi)}.ahead small{display:block;font:700 11px var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}.ahead em{display:block;font:600 12.5px var(--body);font-style:normal;color:#b7f0a8}
+.arows{display:grid;grid-template-columns:1fr;gap:3px}.arows div{display:flex;gap:10px;font:500 13.5px var(--body);color:var(--parch)}.arows span{width:72px;flex:none;color:var(--dim)}
+.aab{margin:8px 0 0;padding-left:18px;font:500 13.5px/1.4 var(--body);color:#e8dcc0}.aab li{margin:3px 0}

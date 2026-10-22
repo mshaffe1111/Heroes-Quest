@@ -218,7 +218,7 @@ export function openOptions() {
     row('Quiet when you switch tabs', 'Pauses music and effects while the game is in the background.', sw('quietHidden')),
     h('div', { class: 'eyebrow', style: { margin: '14px 0 6px' } }, 'Game flow'),
     row('Enemy turns', 'Every enemy army moves in turn while the camera follows it. Tap to skip an army, or skip the rest.', h('div', { class: 'segs' }, modeBtns)),
-    row('Open in full screen', 'The game fills the whole screen as soon as you tap, hiding the browser’s bars. Best on phones.', sw('autoFull')),
+    row('Keep full screen', 'The game fills the whole screen and goes back to full screen whenever the phone drops out of it. The full-screen button at the top turns this off and on.', sw('autoFull')),
     row('Camera follows armies', 'Centres the map on each army as it moves, on your turn and theirs.', sw('follow')), h('div', { class: 'sub2' }, slider('moveSpeed', 'Movement speed', save)),
     row('Combat advisor', 'Show your chance of winning when you point an army at an enemy.', sw('odds')),
     row('Jump to the next army', 'After an army has moved, select the next one that still has orders.', sw('autoNext')),

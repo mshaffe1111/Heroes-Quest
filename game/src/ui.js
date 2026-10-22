@@ -80,7 +80,7 @@ export async function toggleFullscreen() {
 /** The small button that sits in the corner of the title and the wizard (the game has its own in the top bar). */
 export function fsButton(cls = '') {
   if (!canFullscreen()) return null;
-  const b = h('button', { class: 'fsbtn ' + cls, 'aria-label': 'Full screen', title: 'Full screen', onclick: (e) => { e.stopPropagation(); toggleFullscreen(); } }, h('span', { html: '<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 8V3h5M12 3h5v5M17 12v5h-5M8 17H3v-5"/></svg>' }));
+  const b = h('button', { class: 'fsbtn ' + cls, 'aria-label': 'Full screen', title: 'Full screen', onclick: (e) => { e.stopPropagation(); dispatchEvent(new Event(isFullscreen() ? 'hq-fs-off' : 'hq-fs-on')); toggleFullscreen(); } }, h('span', { html: '<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 8V3h5M12 3h5v5M17 12v5h-5M8 17H3v-5"/></svg>' }));
   const sync = () => { b.classList.toggle('on', isFullscreen()); b.title = isFullscreen() ? 'Leave full screen' : 'Full screen'; };
   document.addEventListener('fullscreenchange', sync); document.addEventListener('webkitfullscreenchange', sync); sync();
   return b;

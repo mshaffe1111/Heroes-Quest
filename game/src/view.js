@@ -315,7 +315,15 @@ export class MapView {
     const m = this.minimapEl; if (!m || !this.minimapBase) return; const g = this.g; const x = m.getContext('2d'); const w = m.width, h = m.height;
     x.imageSmoothingEnabled = true; x.drawImage(this.minimapBase, 0, 0, w, h);
     const sx = w / g.width, sy = h / g.height;
-    for (const c of g.cities.values()) { const realm = c.owner ? g.realms.get(c.owner) : null; if (this.fv && !this.fv.cities.find((q) => q.id === c.id)) continue; const q = Math.max(4, w / 80); x.fillStyle = realmHex(realm) ?? '#d8c9a0'; x.fillRect(c.x * sx - q / 2, c.y * sy - q / 2, q, q); x.strokeStyle = '#0b1320'; x.lineWidth = 1; x.strokeRect(c.x * sx - q / 2, c.y * sy - q / 2, q, q); }
+    // cities: bigger squares (Matt, 22 Oct); free (Unsworn) cities light beige with a brown edge, realm cities in their colour with a black edge
+    for (const c of g.cities.values()) {
+      const k = this.fv ? this.fv.cities.find((q) => q.id === c.id) : null; if (this.fv && !k) continue; const owner = k ? k.owner : c.owner; const razed = k ? k.razed : c.razed;
+      const realm = owner ? g.realms.get(owner) : null; const q = Math.max(6, w / 40); const X = c.x * sx + sx / 2 - q / 2, Y = c.y * sy + sy / 2 - q / 2;
+      if (razed) { x.strokeStyle = '#3a2a1a'; x.lineWidth = Math.max(1.5, q / 5); x.beginPath(); x.moveTo(X, Y); x.lineTo(X + q, Y + q); x.moveTo(X + q, Y); x.lineTo(X, Y + q); x.stroke(); continue; }
+      x.fillStyle = realm ? realmHex(realm) : '#f3e8cc'; x.fillRect(X, Y, q, q);
+      x.strokeStyle = realm ? '#05080e' : '#8a6d42'; x.lineWidth = realm ? Math.max(1.5, q / 5) : Math.max(1, q / 8); x.strokeRect(X, Y, q, q);
+      if (owner && owner === this.me) { x.strokeStyle = '#fff6dc'; x.lineWidth = Math.max(1, q / 8); x.strokeRect(X - q * 0.3, Y - q * 0.3, q * 1.6, q * 1.6); }      // your own cities get a pale halo
+    }
     if (this.fv) { x.drawImage(this.fogCv, 0, 0, w, h); }
     const c = this.cam; const vx = c.x / TP * sx, vy = c.y / TP * sy, vw = this.w / c.z / TP * sx, vh = this.h / c.z / TP * sy; x.strokeStyle = '#fff3c9'; x.lineWidth = Math.max(1.5, w / 200); x.strokeRect(vx, vy, vw, vh);
   }

@@ -433,10 +433,46 @@ function renderCards() {
   if (!arm.length) { c.replaceChildren(h('div', { class: 'hint', style: { alignSelf: 'center', margin: 0 } }, 'No army selected.')); return; }
   c.replaceChildren(...arm.slice(0, 32).map((a) => {
     const d = E.ARMIES[a.type]; const tag = a.afloat ? 'AFLOAT' : a.fortified ? 'FORTIFIED' : a.done ? 'DONE' : a.goal ? 'MARCHING' : a.mp <= 0 ? 'SPENT' : '';
-    return h('button', { class: 'ucard' + (on.has(a.id) ? ' sel' : '') + (!movable(a) ? ' dim' : ''), onclick: () => { if (S.busy) return; const ids = new Set(S.sel.ids); if (ids.has(a.id)) { if (ids.size > 1) ids.delete(a.id); } else if (ids.size < g.rules.stackLimit) ids.add(a.id); else { toast('A group is at most 8 armies.'); return; } S.sel.ids = arm.filter((q) => ids.has(q.id)).map((q) => q.id); S.path = null; S.view.path = null; refresh(); } },
+    let held = false, timer = 0;      // press and hold a card: what this army is
+    const press = () => { held = false; clearTimeout(timer); timer = setTimeout(() => { held = true; armySheet(arm, a.id); }, 450); }; const release = () => clearTimeout(timer);
+    return h('button', { class: 'ucard' + (on.has(a.id) ? ' sel' : '') + (!movable(a) ? ' dim' : ''), onpointerdown: press, onpointerup: release, onpointerleave: release, onpointercancel: release, oncontextmenu: (e) => e.preventDefault(), onclick: () => { if (S.busy || held) return; if (S.sel.ids.length === 1 && S.sel.ids[0] === a.id) { armySheet(arm, a.id); return; } const ids = new Set(S.sel.ids); if (ids.has(a.id)) { if (ids.size > 1) ids.delete(a.id); } else if (ids.size < g.rules.stackLimit) ids.add(a.id); else { toast('A group is at most 8 armies.'); return; } S.sel.ids = arm.filter((q) => ids.has(q.id)).map((q) => q.id); S.path = null; S.view.path = null; refresh(); } },
       h('div', { class: 'top' }, h('img', { src: medalImg(a.afloat ? 'navy' : a.type, S.me, 96) }), h('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '5px' } }, tag ? h('span', { class: 'tag' }, tag) : null, pipsRow(a))),
       h('div', {}, h('div', { class: 'nm' }, unitName(a)), h('div', { class: 'st' }, E.isHero(a) ? `Hero L${a.level} · M ${a.mp}` : `S ${d.str} · M ${a.mp}`)));
-  }));
+  }), h('button', { class: 'uinfo', 'aria-label': 'What are these armies?', onclick: () => armySheet(arm, S.sel?.ids?.[0]) }, h('b', {}, 'i'), h('span', {}, 'Info')));
+}
+// ---- what an army is: the info sheet (tap the Info button, tap a lone selected army, or press and hold any army card) ----------------
+const LETTERS = { O: 'open ground', R: 'on roads', W: 'woods', H: 'hills', C: 'cities and ruins' };
+const where = (on) => (on ?? []).map((l) => LETTERS[l] ?? l).join(' and ');
+function abilities(a) {
+  const d = E.ARMIES[a.type]; const out = [];
+  if (d.fly) out.push('Flies: crosses water and mountains. A group flies only if every army in it can (a hero may ride along).');
+  if (d.moveBonus) out.push(`Moves through ${where(d.moveBonus)} at the open-ground cost, and the whole group with it.`);
+  if (d.indiv) out.push(`+${d.indiv.amount} strength for itself when fighting in ${where(d.indiv.on)}.`);
+  if (d.stack) out.push(`+${d.stack.amount} strength to every army in its group${d.stack.on ? ' when fighting in ' + where(d.stack.on) : ''}.`);
+  if (d.enemySubtract) out.push(`Takes ${d.enemySubtract} off the strength of every enemy army in the fight.`);
+  if (d.cancelCity) out.push('Cancels the defence bonus of a city it attacks.');
+  if (d.cancelHero) out.push("Cancels the enemy heroes' bonus to their group.");
+  if (d.cancelNonHero) out.push("Cancels the enemy armies' group bonuses.");
+  if (d.special) out.push('A rare army: it cannot be built in a city.');
+  return out;
+}
+function armySheet(arm, focusId = null) {
+  const g = S.g; if (!arm?.length) return; let m; const close = () => m.close();
+  const status = (a) => (a.afloat ? 'At sea' : a.fortified ? 'Fortified' : a.goal ? 'Marching on a route' : a.done ? 'Done for this turn' : a.mp <= 0 ? 'No moves left this turn' : 'Ready for orders');
+  const card = (a) => {
+    const hero = E.isHero(a); const d = E.ARMIES[a.type]; const mx = E.maxPips(a, g.rules), cur = E.pipsOf(a, g.rules);
+    const rows = [['Strength', String(E.baseStrength(a, g.rules)) + (a.blessings ? ` (blessed +${a.blessings})` : '')], ['Moves', `${a.mp} of ${E.moveOf(a, g.rules)} left this turn`], ['Health', `${cur} of ${mx}`], ['Upkeep', `${E.armyUpkeep(a, g.rules)} gold a turn`]];
+    if (hero) { const th = g.rules.heroXpThresholds ?? []; const next = th[a.level]; rows.unshift(['Level', `${a.level}${next != null ? ` · ${a.xp} of ${next} experience to level ${a.level + 1}` : ' (the highest)'}`]);
+      const cmd = (E.naturalCommand?.(E.heroCoreStrength(a, g.rules)) ?? 0) + (E.heroCommandItems?.(a) ?? 0); if (cmd) rows.push(['Leads', `+${cmd} strength to every army in his group`]); }
+    const extra = hero ? [...(a.items ?? []).map((it) => `Carries ${it.name ?? E.ITEMS?.[it.key]?.name ?? 'an item'}`), ...(a.perks ?? []).map((k) => `${E.PERKS?.[k]?.name ?? k}: ${E.PERKS?.[k]?.text ?? ''}`)] : abilities(a);
+    return h('div', { class: 'acard' + (a.id === focusId ? ' focus' : '') + (hero ? ' hero' : '') },
+      h('div', { class: 'ahead' }, h('img', { src: medalImg(a.afloat ? 'navy' : a.type, a.owner, 96), alt: '' }), h('div', {}, h('b', {}, unitName(a)), h('small', {}, hero ? 'Hero' + (a.portrait ? '' : '') : d.special ? 'Rare army' : 'Army'), h('em', {}, status(a)))),
+      h('div', { class: 'arows' }, rows.map(([k, v]) => h('div', {}, h('span', {}, k), h('b', {}, v)))),
+      extra.length ? h('ul', { class: 'aab' }, extra.map((t) => h('li', {}, t))) : h('p', { class: 'sub', style: { margin: '6px 0 0' } }, 'No special abilities.'));
+  };
+  const order = focusId ? [...arm.filter((a) => a.id === focusId), ...arm.filter((a) => a.id !== focusId)] : arm;
+  m = openModal(frame([h('div', { class: 'eyebrow' }, arm.length === 1 ? 'Army' : `${arm.length} armies here`), h('h2', { style: { fontSize: '24px', margin: '2px 0 10px' } }, arm.length === 1 ? unitName(arm[0]) : 'Who is in this group'), h('div', { class: 'acards' }, order.map(card)),
+    h('div', { class: 'foot' }, h('button', { class: 'btn pri', onclick: close }, 'Close'))], { width: 560, onClose: close, cls: 'sheet' }));
 }
 function pipsRow(a) { const mx = E.maxPips(a, S.g.rules), cur = E.pipsOf(a, S.g.rules); return h('div', { class: 'pips' }, Array.from({ length: mx }, (_, i) => h('i', { class: i < cur ? '' : 'w' }))); }
 function renderEnd() {
