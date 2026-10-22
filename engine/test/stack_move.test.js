@@ -12,7 +12,7 @@ test('default fight order is weakest first, strongest last, hero always last', (
 test('the map shows the last army in the fight order with a count', () => {
   const o = defaultOrder([mk('scout'), mk('hcav'), mk('pike')], rules);
   assert.equal(displayArmy(o).type, 'hcav');
-  assert.deepEqual(stackBadge(o), { type: 'hcav', name: 'Heavy Cavalry', count: 3 });
+  assert.deepEqual(stackBadge(o), { type: 'hcav', name: 'Knights', count: 3 });      // Heavy Cavalry, renamed 22 Oct
 });
 test('over mountains or sea a flyer is placed after the hero so he is never stranded', () => {
   const o = defaultOrder([mk('linf'), mk('peg'), mk('hero')], rules, { overRough: true });

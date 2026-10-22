@@ -20,13 +20,13 @@ An ordinary army earns ranks by winning duels. After 4 wins it becomes **Seasone
 
 In Heroes Quest, a few armies are good against particular enemies: they fight +1 stronger in the duel against them. That is small on purpose. The duel in the example below shows how terrain can swing it more than a counter can.
 
-- **Light Cavalry** are strong against Elven Archers and Catapult.
-- **Elven Archers** are strong against Giant Bat, Pegasi, Griffins and Dragon.
-- **Pikemen** are strong against Light Cavalry, Heavy Cavalry and Wolf Riders.
-- **Heavy Cavalry** are strong against Elven Archers and Catapult.
-- **Giants** are strong against Pikemen.
+- **Skirmish Riders** are strong against Sylvan Bowmen and Siege Engine.
+- **Sylvan Bowmen** are strong against Dusk Bats, Winged Lancers, Griffin Riders and Elder Dragon.
+- **Pike Guard** are strong against Skirmish Riders, Knights and Direwolf Riders.
+- **Knights** are strong against Sylvan Bowmen and Siege Engine.
+- **Stone Giants** are strong against Pike Guard.
 
-Example, worked out exactly: Heavy Infantry attacking Light Infantry on open ground wins the duel 84% of the time. Heavy Cavalry attacking Pikemen wins 50% on open ground, but only 37% in woods, because Pikemen counter horse and the horse lose their open-ground bonus.
+Example, worked out exactly: Shieldwall attacking Militia on open ground wins the duel 84% of the time. Knights attacking Pike Guard wins 50% on open ground, but only 37% in woods, because Pike Guard counter horse and the horse lose their open-ground bonus.
 
 ### What the classes are for
 
@@ -41,53 +41,53 @@ Example, worked out exactly: Heavy Infantry attacking Light Infantry on open gro
 
 | Army | Strength | Cost | Strength per gold |
 |---|---|---|---|
-| Scout | 1 | 2 | 0.50 |
-| Light Infantry | 2 | 2 | 1.00 |
-| Orc Mob | 2 | 3 | 0.67 |
-| Heavy Infantry | 3 | 5 | 0.60 |
-| Elven Archers | 3 | 7 | 0.43 |
-| Dwarves | 3 | 7 | 0.43 |
-| Pikemen | 4 | 5 | 0.80 |
+| Outriders | 1 | 2 | 0.50 |
+| Militia | 2 | 2 | 1.00 |
+| Horde Raiders | 2 | 3 | 0.67 |
+| Shieldwall | 3 | 5 | 0.60 |
+| Sylvan Bowmen | 3 | 7 | 0.43 |
+| Ironfolk | 3 | 7 | 0.43 |
+| Pike Guard | 4 | 5 | 0.80 |
 
 ### Foot
 
-#### Scout
+#### Outriders
 **Strength 1 · Moves 16 · Cost 2 gold · Upkeep 1 gold a turn · 2 pips · Built in 1 turn**
 - Pays the open-ground move cost in woods and hills, and so does every army travelling with it.
 - On open ground its moves carry it 8 squares a turn, on a road 16.
 - **Good for:** Exploring and claiming ground cheaply. It slips through woods and hills, and it drags any stack it travels with through them at open-ground speed.
 - **Watch out for:** It dies to almost anything. Never send it into a fight you can avoid.
 
-#### Light Infantry
+#### Militia
 **Strength 2 · Moves 12 · Cost 2 gold · Upkeep 1 gold a turn · 2 pips · Built in 1 turn**
 - On open ground its moves carry it 6 squares a turn, on a road 12.
 - **Good for:** Cheap garrison filler and cheap bodies to soak up hits at the front of a stack.
 - **Watch out for:** Very few pips. Anything heavier cuts through it.
 
-#### Orc Mob
+#### Horde Raiders
 **Strength 2 · Moves 12 · Cost 3 gold · Upkeep 1 gold a turn · 2 pips · Built in 2 turns**
 - Pays the open-ground move cost in woods and hills, and so does every army travelling with it.
 - On open ground its moves carry it 6 squares a turn, on a road 12.
 - **Good for:** A cheap soldier that moves quickly through woods and hills, and carries a stack with it.
 - **Watch out for:** Weak in a straight fight; use it for numbers, not for winning battles.
 
-#### Heavy Infantry
+#### Shieldwall
 **Strength 3 · Moves 8 · Cost 5 gold · Upkeep 2 gold a turn · 3 pips · Built in 2 turns**
 - On open ground its moves carry it 4 squares a turn, on a road 8.
 - **Good for:** A dependable soldier that holds a line and costs little for what it brings.
 - **Watch out for:** No special bonus anywhere, so a good counter will beat it.
 
-#### Elven Archers
+#### Sylvan Bowmen
 **Strength 3 · Moves 12 · Cost 7 gold · Upkeep 3 gold a turn · 3 pips · Built in 2 turns**
 - Fights +1 stronger in woods (this army only).
 - Pays the open-ground move cost in woods, and so does every army travelling with it.
-- Strong against Giant Bat, Pegasi, Griffins and Dragon: it fights +1 stronger in those duels.
-- Weak against Light Cavalry and Heavy Cavalry: they fight +1 stronger against it.
+- Strong against Dusk Bats, Winged Lancers, Griffin Riders and Elder Dragon: it fights +1 stronger in those duels.
+- Weak against Skirmish Riders and Knights: they fight +1 stronger against it.
 - On open ground its moves carry it 6 squares a turn, on a road 12.
 - **Good for:** Fighting in woods, where it is strong and travels quickly. It counters every flying army.
 - **Watch out for:** Cavalry ride it down on open ground.
 
-#### Dwarves
+#### Ironfolk
 **Strength 3 · Moves 8 · Cost 7 gold · Upkeep 3 gold a turn · 3 pips · Built in 2 turns**
 - Fights +1 stronger in hills (this army only).
 - Pays the open-ground move cost in hills, and so does every army travelling with it.
@@ -95,51 +95,51 @@ Example, worked out exactly: Heavy Infantry attacking Light Infantry on open gro
 - **Good for:** Fighting in hills, where it is strong and moves quickly. A sturdy defender of hill country.
 - **Watch out for:** Ordinary value everywhere else; pick it for hill country, not for the plains.
 
-#### Pikemen
+#### Pike Guard
 **Strength 4 · Moves 8 · Cost 5 gold · Upkeep 2 gold a turn · 3 pips · Built in 3 turns**
 - Fights +1 stronger on open ground and roads (this army only).
-- Strong against Light Cavalry, Heavy Cavalry and Wolf Riders: it fights +1 stronger in those duels.
-- Weak against Giants: they fight +1 stronger against it.
+- Strong against Skirmish Riders, Knights and Direwolf Riders: it fights +1 stronger in those duels.
+- Weak against Stone Giants: they fight +1 stronger against it.
 - On open ground its moves carry it 4 squares a turn, on a road 8.
 - **Good for:** The best value among the heavy foot. Strong on open ground and roads, and it counters every horse army.
-- **Watch out for:** Giants hurl pikemen aside, and it is slow.
+- **Watch out for:** Stone Giants hurl pikemen aside, and it is slow.
 
 ### Mounted
 
-#### Light Cavalry
+#### Skirmish Riders
 **Strength 2 · Moves 20 · Cost 4 gold · Upkeep 2 gold a turn · 2 pips · Built in 2 turns**
 - Fights +1 stronger on open ground and roads (this army only).
-- Strong against Elven Archers and Catapult: it fights +1 stronger in those duels.
-- Weak against Pikemen: they fight +1 stronger against it.
+- Strong against Sylvan Bowmen and Siege Engine: it fights +1 stronger in those duels.
+- Weak against Pike Guard: they fight +1 stronger against it.
 - On open ground its moves carry it 10 squares a turn, on a road 20.
-- **Good for:** Fast, and sharp on open ground and roads. It counters Elven Archers and Catapults.
-- **Watch out for:** Pikemen counter it, and it gets no bonus in woods, hills or cities.
+- **Good for:** Fast, and sharp on open ground and roads. It counters Sylvan Bowmen and Siege Engines.
+- **Watch out for:** Pike Guard counter it, and it gets no bonus in woods, hills or cities.
 
-#### Heavy Cavalry
+#### Knights
 **Strength 4 · Moves 16 · Cost 8 gold · Upkeep 4 gold a turn · 3 pips · Built in 3 turns**
 - Fights +2 stronger on open ground and roads (this army only).
-- Strong against Elven Archers and Catapult: it fights +1 stronger in those duels.
-- Weak against Pikemen: they fight +1 stronger against it.
+- Strong against Sylvan Bowmen and Siege Engine: it fights +1 stronger in those duels.
+- Weak against Pike Guard: they fight +1 stronger against it.
 - On open ground its moves carry it 8 squares a turn, on a road 16.
-- **Good for:** Hitting hard on open ground and roads while still moving fast. It counters Elven Archers and Catapults.
-- **Watch out for:** Pikemen counter it, and in woods, hills or cities it loses its edge.
+- **Good for:** Hitting hard on open ground and roads while still moving fast. It counters Sylvan Bowmen and Siege Engines.
+- **Watch out for:** Pike Guard counter it, and in woods, hills or cities it loses its edge.
 
-#### Wolf Riders
+#### Direwolf Riders
 **Strength 4 · Moves 16 · Cost 8 gold · Upkeep 4 gold a turn · 3 pips · Built in 2 turns**
 - Lifts the whole stack by +1 in hills. Only the best single stack bonus counts.
-- Weak against Pikemen: they fight +1 stronger against it.
+- Weak against Pike Guard: they fight +1 stronger against it.
 - On open ground its moves carry it 8 squares a turn, on a road 16.
 - **Good for:** Fast, and it lifts the whole stack in hill country.
-- **Watch out for:** Pikemen counter it, and the bonus only helps in the hills.
+- **Watch out for:** Pike Guard counter it, and the bonus only helps in the hills.
 
 ### Beasts
 
-#### Giants
+#### Stone Giants
 **Strength 5 · Moves 16 · Cost 13 gold · Upkeep 6 gold a turn · 4 pips · Built in 2 turns**
 - Pays the open-ground move cost in hills, and so does every army travelling with it.
-- Strong against Pikemen: it fights +1 stronger in those duels.
+- Strong against Pike Guard: it fights +1 stronger in those duels.
 - On open ground its moves carry it 8 squares a turn, on a road 16.
-- **Good for:** Raw strength for the price, quick through hills, and it counters Pikemen.
+- **Good for:** Raw strength for the price, quick through hills, and it counters Pike Guard.
 - **Watch out for:** It is dear, so losing one hurts.
 
 #### Minotaurs
@@ -149,21 +149,21 @@ Example, worked out exactly: Heavy Infantry attacking Light Infantry on open gro
 - **Good for:** Defending and assaulting built-up places: it is stronger in cities, ruins, temples and camps.
 - **Watch out for:** No bonus in the open.
 
-#### Giant Spiders
+#### Brood Spiders
 **Strength 5 · Moves 12 · Cost 16 gold · Upkeep 8 gold a turn · 4 pips · Built in 2 turns**
 - Fights +2 stronger in cities, ruins, temples and camps (this army only).
 - On open ground its moves carry it 6 squares a turn, on a road 12.
 - **Good for:** Fighting in and around cities, ruins and temples, where its bonus is large.
 - **Watch out for:** Dear, and no bonus away from built-up ground.
 
-#### Unicorns
+#### Moon Unicorns
 **Strength 7 · Moves 16 · Cost 19 gold · Upkeep 9 gold a turn · 4 pips · Built in 4 turns**
 - Lifts the whole stack by +1 wherever it fights. Only the best single stack bonus counts.
 - On open ground its moves carry it 8 squares a turn, on a road 16.
 - **Good for:** A strong army that lifts the whole stack wherever it fights.
 - **Watch out for:** Very dear, slow to build, and it cannot fly.
 
-#### Elephants
+#### War Tuskers
 **Strength 8 · Moves 16 · Cost 20 gold · Upkeep 10 gold a turn · 4 pips · Built in 4 turns**
 - Every enemy army in the battle fights 1 weaker (never below one).
 - On open ground its moves carry it 8 squares a turn, on a road 16.
@@ -172,88 +172,88 @@ Example, worked out exactly: Heavy Infantry attacking Light Infantry on open gro
 
 ### Winged
 
-#### Giant Bat
+#### Dusk Bats
 **Strength 1 · Moves 16 · Cost 5 gold · Upkeep 2 gold a turn · 2 pips · Built in 1 turn**
 - Flies: ignores water and mountains and pays 1 move point a square.
-- Weak against Elven Archers: they fight +1 stronger against it.
+- Weak against Sylvan Bowmen: they fight +1 stronger against it.
 - On open ground its moves carry it 8 squares a turn, on a road 16.
 - **Good for:** Flying over water and mountains to scout or grab far-off ground.
-- **Watch out for:** Fragile, and Elven Archers shoot it down.
+- **Watch out for:** Fragile, and Sylvan Bowmen shoot it down.
 
-#### Pegasi
+#### Winged Lancers
 **Strength 5 · Moves 20 · Cost 14 gold · Upkeep 7 gold a turn · 4 pips · Built in 3 turns**
 - Lifts the whole stack by +1 wherever it fights. Only the best single stack bonus counts.
 - Flies: ignores water and mountains and pays 1 move point a square.
-- Weak against Elven Archers: they fight +1 stronger against it.
+- Weak against Sylvan Bowmen: they fight +1 stronger against it.
 - On open ground its moves carry it 10 squares a turn, on a road 20.
 - **Good for:** It flies, and it lifts the whole stack wherever it fights.
-- **Watch out for:** Dear, and Elven Archers counter it.
+- **Watch out for:** Dear, and Sylvan Bowmen counter it.
 
-#### Griffins
+#### Griffin Riders
 **Strength 6 · Moves 20 · Cost 21 gold · Upkeep 10 gold a turn · 4 pips · Built in 3 turns**
 - Fights +2 stronger in cities, ruins, temples and camps (this army only).
 - Flies: ignores water and mountains and pays 1 move point a square.
-- Weak against Elven Archers: they fight +1 stronger against it.
+- Weak against Sylvan Bowmen: they fight +1 stronger against it.
 - On open ground its moves carry it 10 squares a turn, on a road 20.
 - **Good for:** A strong flyer that is even stronger in cities, ruins and temples.
-- **Watch out for:** Dear, and Elven Archers counter it.
+- **Watch out for:** Dear, and Sylvan Bowmen counter it.
 
 ### Siege
 
-#### Catapult
+#### Siege Engine
 **Strength 2 · Moves 16 · Cost 15 gold · Upkeep 7 gold a turn · 2 pips · Built in 4 turns**
 - Cancels the city and camp defence bonus of the defenders it attacks.
-- Weak against Light Cavalry and Heavy Cavalry: they fight +1 stronger against it.
+- Weak against Skirmish Riders and Knights: they fight +1 stronger against it.
 - On open ground its moves carry it 8 squares a turn, on a road 16.
 - **Good for:** Taking walled cities: it cancels the defence bonus of cities and camps for the whole attacking side.
 - **Watch out for:** Dear, weak in a duel and slow to build. Cavalry counter it, so guard it with something sturdy.
 
 ### Special
 
-#### Wizard
+#### Archmage
 **Strength 6 · Moves 50 · 4 pips** · Special army: it cannot be built, it joins you through ruins, temples and quests, and it costs no upkeep.
 - Lifts the whole stack by +1 wherever it fights. Only the best single stack bonus counts.
 - On open ground its moves carry it 25 squares a turn, on a road 50.
 - **Good for:** Moves enormous distances and lifts the whole stack.
 - **Watch out for:** A fighter of middling strength; keep it inside a stack.
 
-#### The Worm
+#### Great Wyrm
 **Strength 7 · Moves 12 · 4 pips** · Special army: it cannot be built, it joins you through ruins, temples and quests, and it costs no upkeep.
 - Lifts the whole stack by +1 wherever it fights. Only the best single stack bonus counts.
 - On open ground its moves carry it 6 squares a turn, on a road 12.
 - **Good for:** A strong ally that lifts the whole stack.
 - **Watch out for:** Slow compared with the winged specials.
 
-#### Undead
+#### Barrow Dead
 **Strength 7 · Moves 16 · 4 pips** · Special army: it cannot be built, it joins you through ruins, temples and quests, and it costs no upkeep.
 - Lifts the whole stack by +1 wherever it fights. Only the best single stack bonus counts.
 - On open ground its moves carry it 8 squares a turn, on a road 16.
 - **Good for:** A strong ally that lifts the whole stack.
 - **Watch out for:** Nothing special beyond its strength.
 
-#### Demon
+#### Pit Fiend
 **Strength 7 · Moves 20 · 4 pips** · Special army: it cannot be built, it joins you through ruins, temples and quests, and it costs no upkeep.
 - Lifts the whole stack by +1 wherever it fights. Only the best single stack bonus counts.
 - On open ground its moves carry it 10 squares a turn, on a road 20.
 - **Good for:** A strong, fast ally that lifts the whole stack.
 - **Watch out for:** Nothing special beyond its strength.
 
-#### Elemental
+#### Stone Colossus
 **Strength 8 · Moves 12 · 4 pips** · Special army: it cannot be built, it joins you through ruins, temples and quests, and it costs no upkeep.
 - Lifts the whole stack by +1 wherever it fights. Only the best single stack bonus counts.
 - On open ground its moves carry it 6 squares a turn, on a road 12.
 - **Good for:** Very strong, and it lifts the whole stack.
 - **Watch out for:** Slow.
 
-#### Devil
+#### Shadow Lord
 **Strength 8 · Moves 16 · 4 pips** · Special army: it cannot be built, it joins you through ruins, temples and quests, and it costs no upkeep.
 - Lifts the whole stack by +1 wherever it fights. Only the best single stack bonus counts.
 - Cancels every stack bonus from non-hero armies on the other side.
 - On open ground its moves carry it 8 squares a turn, on a road 16.
-- **Good for:** Stripping an enemy who leans on cavalry, Pegasi, Unicorns and other stack-bonus armies of every one of those bonuses.
+- **Good for:** Stripping an enemy who leans on cavalry, Winged Lancers, Moon Unicorns and other stack-bonus armies of every one of those bonuses.
 - **Watch out for:** Hero bonuses on the enemy side still count.
 
-#### Archon
+#### Seraph
 **Strength 8 · Moves 16 · 4 pips** · Special army: it cannot be built, it joins you through ruins, temples and quests, and it costs no upkeep.
 - Lifts the whole stack by +1 wherever it fights. Only the best single stack bonus counts.
 - Cancels the hero bonuses on the other side.
@@ -261,11 +261,11 @@ Example, worked out exactly: Heavy Infantry attacking Light Infantry on open gro
 - **Good for:** Stripping an enemy who leans on a strong hero of every hero bonus.
 - **Watch out for:** Other bonuses on the enemy side still count.
 
-#### Dragon
+#### Elder Dragon
 **Strength 9 · Moves 22 · 6 pips** · Special army: it cannot be built, it joins you through ruins, temples and quests, and it costs no upkeep.
 - Lifts the whole stack by +2 wherever it fights. Only the best single stack bonus counts.
 - Flies: ignores water and mountains and pays 1 move point a square.
-- Weak against Elven Archers: they fight +1 stronger against it.
+- Weak against Sylvan Bowmen: they fight +1 stronger against it.
 - On open ground its moves carry it 11 squares a turn, on a road 22.
 - **Good for:** The strongest army in the game. It flies and lifts the whole stack.
 - **Watch out for:** Everything wants it; guard it well.
@@ -367,22 +367,22 @@ A hero moves at the pace of the armies he travels with. A hero alone, or any arm
 
 Mountains and open water cannot be crossed on foot. Flying armies pay 1 point a square over anything.
 
-Some armies pay the open-ground price in rough country, and carry the whole stack with them: Scout, Orc Mob and Elven Archers in woods and Scout, Orc Mob, Dwarves and Giants in hills.
+Some armies pay the open-ground price in rough country, and carry the whole stack with them: Outriders, Horde Raiders and Sylvan Bowmen in woods and Outriders, Horde Raiders, Ironfolk and Stone Giants in hills.
 
 ### Terrain in battle
 
 Some armies fight stronger on certain ground (their own strength only):
 
-- **Open ground:** Light Cavalry +1, Pikemen +1 and Heavy Cavalry +2
-- **Roads:** Light Cavalry +1, Pikemen +1 and Heavy Cavalry +2
-- **Woods:** Elven Archers +1
-- **Hills:** Dwarves +1
-- **Cities, ruins, temples and camps:** Minotaurs +1, Giant Spiders +2 and Griffins +2
+- **Open ground:** Skirmish Riders +1, Pike Guard +1 and Knights +2
+- **Roads:** Skirmish Riders +1, Pike Guard +1 and Knights +2
+- **Woods:** Sylvan Bowmen +1
+- **Hills:** Ironfolk +1
+- **Cities, ruins, temples and camps:** Minotaurs +1, Brood Spiders +2 and Griffin Riders +2
 
 Stack bonuses that help every army in the stack:
 
-- **Hills:** Wolf Riders +1
-- **Anywhere:** Pegasi +1, Unicorns +1, Wizard +1, The Worm +1, Undead +1, Demon +1, Elemental +1, Devil +1, Archon +1 and Dragon +2
+- **Hills:** Direwolf Riders +1
+- **Anywhere:** Winged Lancers +1, Moon Unicorns +1, Archmage +1, Great Wyrm +1, Barrow Dead +1, Pit Fiend +1, Stone Colossus +1, Shadow Lord +1, Seraph +1 and Elder Dragon +2
 
 A road across open ground counts as both open ground and road. A road through woods or hills counts only as that wood or hill ground for battle bonuses.
 
@@ -411,25 +411,25 @@ New armies can be sent to another of your cities instead of staying put. They ar
 
 | Army | Built in | Cost | Cost to teach a city |
 |---|---|---|---|
-| Scout | 1 | 2 | 20 |
-| Giant Bat | 1 | 5 | 50 |
-| Light Infantry | 1 | 2 | 20 |
-| Orc Mob | 2 | 3 | 60 |
-| Light Cavalry | 2 | 4 | 80 |
-| Catapult | 4 | 15 | 600 |
-| Heavy Infantry | 2 | 5 | 100 |
-| Elven Archers | 2 | 7 | 140 |
-| Dwarves | 2 | 7 | 140 |
-| Pikemen | 3 | 5 | 150 |
-| Heavy Cavalry | 3 | 8 | 240 |
-| Wolf Riders | 2 | 8 | 160 |
-| Giants | 2 | 13 | 260 |
+| Outriders | 1 | 2 | 20 |
+| Dusk Bats | 1 | 5 | 50 |
+| Militia | 1 | 2 | 20 |
+| Horde Raiders | 2 | 3 | 60 |
+| Skirmish Riders | 2 | 4 | 80 |
+| Siege Engine | 4 | 15 | 600 |
+| Shieldwall | 2 | 5 | 100 |
+| Sylvan Bowmen | 2 | 7 | 140 |
+| Ironfolk | 2 | 7 | 140 |
+| Pike Guard | 3 | 5 | 150 |
+| Knights | 3 | 8 | 240 |
+| Direwolf Riders | 2 | 8 | 160 |
+| Stone Giants | 2 | 13 | 260 |
 | Minotaurs | 2 | 13 | 260 |
-| Giant Spiders | 2 | 16 | 320 |
-| Pegasi | 3 | 14 | 420 |
-| Griffins | 3 | 21 | 630 |
-| Unicorns | 4 | 19 | 760 |
-| Elephants | 4 | 20 | 800 |
+| Brood Spiders | 2 | 16 | 320 |
+| Winged Lancers | 3 | 14 | 420 |
+| Griffin Riders | 3 | 21 | 630 |
+| Moon Unicorns | 4 | 19 | 760 |
+| War Tuskers | 4 | 20 | 800 |
 
 ### Taking a city
 
@@ -468,7 +468,7 @@ A realm can have one quest at a time, given to a particular hero, and it must be
 
 A battle is a string of **duels**. In each duel the front army of each side fights. A duel is a series of rounds. In each round both sides roll a die with 20 sides. A side whose roll is at or below the other side's strength loses the round, and loses a pip. If both sides lose or both win, they roll again. The duel ends when one army has no pips left. The loser is destroyed and the next army steps up.
 
-The stronger army wins more rounds but never all of them: armies of equal strength and equal pips are even, and Heavy Infantry against Light Infantry wins 84% of the time. The odds advisor works these numbers out for you before you commit. An optional **Intense Combat** setting uses a die with 24 sides.
+The stronger army wins more rounds but never all of them: armies of equal strength and equal pips are even, and Shieldwall against Militia wins 84% of the time. The odds advisor works these numbers out for you before you commit. An optional **Intense Combat** setting uses a die with 24 sides.
 
 ### Wounds
 
@@ -476,9 +476,9 @@ In Heroes Quest, pips an army loses stay lost: the army carries its wounds into 
 
 ### Strength in a duel
 
-Each army's strength is: its own strength (with any bonus for the ground it stands on, never over 9), plus its side's **stack bonus**, plus a counter if it has one, less 1 if the other side has Elephants (never below one). It can never go over 14.
+Each army's strength is: its own strength (with any bonus for the ground it stands on, never over 9), plus its side's **stack bonus**, plus a counter if it has one, less 1 if the other side has War Tuskers (never below one). It can never go over 14.
 
-The stack bonus is the best hero's command bonus plus command items, plus the best single non-hero stack bonus, plus (for defenders) the city or camp bonus. It never goes over 5. Devils cancel the other side's non-hero bonuses, Archons cancel hero bonuses, and Catapults cancel the defenders' city and camp bonus. Bonuses are worked out again before every duel, so losing a bonus-giving army weakens the rest.
+The stack bonus is the best hero's command bonus plus command items, plus the best single non-hero stack bonus, plus (for defenders) the city or camp bonus. It never goes over 5. Devils cancel the other side's non-hero bonuses, Archons cancel hero bonuses, and Siege Engines cancel the defenders' city and camp bonus. Bonuses are worked out again before every duel, so losing a bonus-giving army weakens the rest.
 
 ### Fight order
 
