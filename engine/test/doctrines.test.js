@@ -92,13 +92,13 @@ test('Hold the Line: a stack that just ordered defend gets its camp bonus at onc
 });
 
 test('Quick Muster: cheap armies take a turn less (never under one); dear ones are unchanged', () => {
-  const g = game(); const pike = E.ARMIES.pike, linf = E.ARMIES.linf, hcav = E.ARMIES.hcav;
-  assert.equal(E.buildTurns(g.rules, 'A', pike), 3);
+  // Pike Guard cost 7 since the 22 Oct balance, so it is no longer 'cheap'; Shieldwall (5 gold, 2 turns) is the cheap army that takes a turn less
+  const g = game(); const hinf = E.ARMIES.hinf, linf = E.ARMIES.linf, hcav = E.ARMIES.hcav, pike = E.ARMIES.pike;
+  assert.equal(E.buildTurns(g.rules, 'A', hinf), 2);
   own(g, 'A', 'muster');
-  assert.equal(E.buildTurns(g.rules, 'A', pike), 2); assert.equal(E.buildTurns(g.rules, 'A', linf), 1); assert.equal(E.buildTurns(g.rules, 'A', hcav), 3);
-  assert.equal(E.buildTurns(g.rules, 'B', pike), 3);
-  E.setProduction(g, 'ca', 'pike'); E.beginTurn(g, 'A'); assert.equal([...g.armies.values()].length, 0);
-  E.beginTurn(g, 'A'); assert.equal([...g.armies.values()].filter((a) => a.type === 'pike').length, 1, 'pikemen ready in 2 turns');
+  assert.equal(E.buildTurns(g.rules, 'A', hinf), 1); assert.equal(E.buildTurns(g.rules, 'A', linf), 1); assert.equal(E.buildTurns(g.rules, 'A', hcav), 3); assert.equal(E.buildTurns(g.rules, 'A', pike), 3);
+  assert.equal(E.buildTurns(g.rules, 'B', hinf), 2);
+  g.cities.get('ca').production.push('hinf'); E.setProduction(g, 'ca', 'hinf'); E.beginTurn(g, 'A'); assert.equal([...g.armies.values()].filter((a) => a.type === 'hinf').length, 1, 'shieldwall ready in 1 turn');
 });
 
 test('Quartermasters, Tax Reform and Sea Lords change the money', () => {

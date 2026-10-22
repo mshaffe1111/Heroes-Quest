@@ -50,7 +50,7 @@ const PIPS = { scout: 2, bat: 2, linf: 2, orc: 2, lcav: 2, cat: 2,
 const BEATS = { pike: ['lcav', 'hcav', 'wolf'], elf: ['bat', 'peg', 'grif', 'drag'], lcav: ['elf', 'cat'], hcav: ['elf', 'cat'], giant: ['pike'] };
 // Prices: with toughness varying by class, the plain 90s original prices would make big armies far better value and cheap ones poor (a pip is worth ~15 points of
 // standing). These prices keep every buildable army's equal-gold standing where it is in the 90s original (balance.mjs / reprice.mjs). Classic mode uses classicCost.
-const PRICE = { linf: 2, orc: 3, lcav: 4, cat: 15, giant: 13, mino: 13, spid: 16, peg: 14, grif: 21, uni: 19, ele: 20 };
+const PRICE = { linf: 2, orc: 3, lcav: 4, cat: 8, giant: 11, mino: 11, spid: 12, peg: 14, grif: 21, uni: 19, ele: 20, pike: 7, bat: 3 };      // 22 Oct balance (Matt approved, from the combat lab): Pike Guard 5->7, Siege Engine 15->8, Dusk Bats 5->3, Stone Giants and Minotaurs 13->11, Brood Spiders 16->12
 for (const k of Object.keys(ARMIES)) { ARMIES[k].classicCost = ARMIES[k].cost; if (PRICE[k]) ARMIES[k].cost = PRICE[k]; ARMIES[k].pips = PIPS[k] ?? 3; if (BEATS[k]) ARMIES[k].beats = BEATS[k]; }
 
 export const ARMY_KEYS = Object.keys(ARMIES);

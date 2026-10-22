@@ -15,7 +15,7 @@ function invariants(g) {
   for (const a of g.armies.values()) {
     if (a.x == null) continue;
     const t = E.tileAt(g, a.x, a.y); const k = `${a.x},${a.y}`; (perTile.get(k) ?? perTile.set(k, []).get(k)).push(a);
-    const fly = E.groupCanFly([a]);
+    const fly = E.groupCanFly(E.armiesAt(g, a.x, a.y).filter((q) => q.owner === a.owner));      // a hero with a flight item carries his whole group (over mountains too)
     if (!fly && !a.afloat) assert.ok(t.terrain !== 'water' || t.bridge || t.cityId, `${a.type} on foot in open water at ${k}`);
     if (!fly && t.terrain === 'mountain') assert.fail(`${a.type} on a mountain at ${k}`);
     if (a.afloat) assert.ok(t.terrain === 'water' || E.isEmbarkPoint(g, a.x, a.y), `afloat ${a.type} on land at ${k}`);
