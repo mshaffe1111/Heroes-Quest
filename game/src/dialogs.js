@@ -148,9 +148,9 @@ export function askCapture(cityId) {
 export function heroOfferDialog(offer) {
   return new Promise((resolve) => {
     let m; const done = (v) => { m.close(); resolve(v); }; const g = S.g; const city = g.cities.get(offer.cityId);
-    m = openModal(frame([h('div', { class: 'eyebrow' }, 'A stranger at the gate'), h('h2', {}, `${offer.name} offers a sword`), h('p', { class: 'sub', style: { margin: '10px 0 14px' } }, `A hero has come to ${city.name} and will join your cause for ${offer.cost} gold. Heroes grow stronger with every battle and can lead the armies around them.`),
+    m = openModal(frame([h('img', { class: 'scene', src: 'play/assets/scenes/heroffer.webp', alt: '' }), h('div', { class: 'eyebrow' }, 'A stranger at the gate'), h('h2', {}, `${offer.name} offers a sword`), h('p', { class: 'sub', style: { margin: '10px 0 14px' } }, `A hero has come to ${city.name} and will join your cause for ${offer.cost} gold. Heroes grow stronger with every battle and can lead the armies around them.`),
       h('div', { style: { display: 'flex', gap: '14px', alignItems: 'center' } }, h('img', { src: medalImg('hero', S.me, 96), style: { width: '70px' } }), h('div', { class: 'sub' }, `You have ${num(g.realms.get(S.me).gold)} gold.`)),
-      h('div', { class: 'foot' }, h('button', { class: 'btn', onclick: () => done(false) }, 'Not now'), h('button', { class: 'btn pri', onclick: () => done(true) }, `Hire for ${offer.cost} gold`))], { width: 520, closeButton: false }), { dismiss: false }); m.onEsc = () => done(false);
+      h('div', { class: 'foot' }, h('button', { class: 'btn', onclick: () => done(false) }, 'Not now'), h('button', { class: 'btn pri', onclick: () => done(true) }, `Hire for ${offer.cost} gold`))], { width: 520, closeButton: false , cls: 'scenecard' }), { dismiss: false }); m.onEsc = () => done(false);
   });
 }
 
@@ -260,7 +260,7 @@ export function openEnd(status) {
   const g = S.g; const rows = E.standings(g, status.victor); const won = status.victor === S.me;
   let title = won ? 'Victory' : status.reason === 'conceded' ? 'You gave up' : status.reason === 'eliminated' ? 'Your realm has fallen' : `${realmName(status.victor)} rules the land`;
   const sub = won ? `The ${realmName(S.me)} hold more than half of all the cities. The other realms lay down their arms.` : status.reason === 'conceded' ? 'The war goes on without you.' : status.reason === 'eliminated' ? 'No cities and no armies are left to your name.' : 'They hold more than half of all the cities.';
-  const table = h('table', { class: 't' }, h('thead', {}, h('tr', {}, ['', 'Realm', 'Cities', 'Most cities', 'Taken', 'Lost', 'Battles won', 'Armies lost'].map((c) => h('th', {}, c)))),
+  const table = h('table', { class: 't standings' }, h('thead', {}, h('tr', {}, ['', 'Realm', 'Cities', 'Most cities', 'Taken', 'Lost', 'Battles won', 'Armies lost'].map((c) => h('th', {}, c)))),
     h('tbody', {}, rows.map((r, i) => h('tr', {}, h('td', { style: { color: '#f3dc9a' } }, i + 1), h('td', {}, h('span', { class: 'dot', style: { background: realmHex(realmOf(r.id)) ?? '#999' } }), r.name + (r.id === S.me ? ' (you)' : '') + (r.winner ? ' ★' : '')), h('td', {}, r.citiesNow), h('td', {}, r.mostCities), h('td', {}, r.citiesTaken), h('td', {}, r.citiesLost), h('td', {}, r.battlesWon), h('td', {}, r.armiesLost)))));
   const big = E.biggestBattle(g, S.me);
   const m = openModal(frame([h('div', { class: 'eyebrow' }, `After ${plural(g.turn, 'turn')}`), h('h2', { style: { fontSize: '42px' } }, title), h('p', { class: 'sub', style: { margin: '8px 0 16px' } }, sub), table,

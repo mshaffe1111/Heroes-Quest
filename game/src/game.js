@@ -51,7 +51,7 @@ function skeleton() {
     h('span', { class: 'pturn', id: 'pturn' }), h('span', { id: 'pcrest' }), h('span', { class: 'sp' }), h('span', { class: 'pgold', id: 'pgold' }),
     fsButton('pfs'), h('button', { class: 'pbell', id: 'pbell', 'aria-label': 'This turn', onclick: () => phoneNews() }, ic('bell'), h('b', { id: 'pbelln' })));
   // every command is a button (Matt: nothing hidden in menus). short = the label on phones; ph = shown on phones (false: the map has its own zoom buttons)
-  const cmd = (icon, label, key, fn, id, short = label, ph = true) => h('button', { class: 'btn cmd' + (ph ? ' ph' : ' noph'), id: id ?? null, onclick: () => { if (!S.busy) fn(); } }, ic(icon), h('span', { class: 'lg' }, label), h('span', { class: 'sh' }, short), key ? h('kbd', {}, key) : null);
+  const cmd = (icon, label, key, fn, id, short = label, ph = true) => h('button', { class: 'btn cmd' + (ph ? ' ph' : ' noph'), id: id ?? null, onclick: () => { if (S.busy) return; if (warOver() && !['cmdcentre', 'cmdmap', 'cmdrep', 'cmdcities', 'cmdinfo'].includes(id)) { overNote(); return; } fn(); } }, ic(icon), h('span', { class: 'lg' }, label), h('span', { class: 'sh' }, short), key ? h('kbd', {}, key) : null);
   const openHere = () => cityButton();
   const stage = h('div', { id: 'stage' },
     h('div', { id: 'mapwrap' }, h('canvas', { id: 'map' }), h('div', { id: 'toast' }), h('div', { class: 'zoombtns' }, h('button', { class: 'btn ibtn', 'aria-label': 'Zoom in', onclick: () => zoom(1.25) }, ic('zoomin')), h('button', { class: 'btn ibtn', 'aria-label': 'Zoom out', onclick: () => zoom(0.8) }, ic('zoomout')))),
@@ -165,7 +165,7 @@ async function continueGoals() {
 }
 
 async function endTurnClick() {
-  if (S.busy || !S.g) return;
+  if (S.busy || !S.g) return; if (warOver()) { D.openEnd(E.gameStatus(S.g)); return; }
   const idle = waiting().length; const idleCities = myCities().filter((c) => !c.building).length;      // an army marching on a route has its orders
   if ((idle || idleCities) && S.opts.confirmEnd !== false) { if (!(await D.confirmEndTurn(idle, idleCities))) return; }
   await endTurn();
@@ -222,7 +222,7 @@ async function concede() {
 // selection and orders
 const ownAt = (x, y) => E.orderedArmiesAt(S.g, x, y, S.me);
 /** Armies that really wait for orders: idle in the engine's sense and not marching on a route the player already gave. */
-const waiting = () => E.idleArmies(S.g, S.me).filter((a) => !a.goal);
+const waiting = () => [...S.g.armies.values()].filter((a) => a.owner === S.me && a.x != null && a.mp > 0 && !a.done && !a.fortified && !a.goal).sort((a, b) => Number(a.id.slice(1)) - Number(b.id.slice(1)));      // ships at sea count too (they used to be skipped and got forgotten)
 const nextWaiting = (afterId) => { const l = waiting(); if (!l.length) return null; const n = afterId ? Number(String(afterId).slice(1)) : -1; return l.find((a) => Number(a.id.slice(1)) > n) ?? l[0]; };
 const movable = (a) => a.mp > 0 && !a.done && !a.fortified;
 function selectStack(x, y, ids = null) {
@@ -262,8 +262,10 @@ function order(kind) {
 
 let lastClick = { t: 0, x: -1, y: -1 };
 function onHover(t) { const el = $('#mapwrap'); if (!el) return; el.style.cursor = S.sel && t ? 'crosshair' : 'default'; }
+const warOver = () => !!S.g && E.gameStatus(S.g).over;
+function overNote() { toast('The war is over. Open the menu (☰) to start a new game.'); }
 async function onTile(t, info) {
-  const g = S.g; if (S.busy || !g || modalOpen()) return; if (t.x < 0 || t.y < 0 || t.x >= g.width || t.y >= g.height) return;
+  const g = S.g; if (S.busy || !g || modalOpen()) return; if (warOver()) { overNote(); return; } if (t.x < 0 || t.y < 0 || t.x >= g.width || t.y >= g.height) return;
   // a tap on a city's name always opens that city (even where an army medal overlaps it); a tap on its castle counts as a tap on its square
   const hit = S.view.cityHitAt?.(info.px, info.py);
   const pin = hit?.kind === 'label' ? null : S.view.pinAt(info.px, info.py);

@@ -563,3 +563,4 @@ body.pl #cmddesel,body.pp #cmddesel{order:13}body.pl #cmdsearch,body.pp #cmdsear
 @media (max-width:760px){table.t.cities th:nth-child(2),table.t.cities td:nth-child(2),table.t.cities th:nth-child(5),table.t.cities td:nth-child(5){display:none}table.t.cities td{padding:8px 6px}}
 @media (max-height:520px) and (min-width:700px){.rcards{grid-template-columns:repeat(4,minmax(0,1fr))!important}.rcard{padding:8px!important}}
 @media (max-height:520px){.capgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.capgrid .opt.cap{margin-bottom:0!important}}
+@media (max-width:760px){table.t.standings th:nth-child(4),table.t.standings td:nth-child(4),table.t.standings th:nth-child(7),table.t.standings td:nth-child(7),table.t.standings th:nth-child(8),table.t.standings td:nth-child(8){display:none}}
