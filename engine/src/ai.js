@@ -9,6 +9,8 @@ import { acceptQuest, declineQuest } from './quests.js';
 import { isHero, def, moveOf, maxPips } from './units.js';
 import { aiChoosePerk } from './perks.js';
 import { buyDoctrine, doctrinePrice, hasDoctrine } from './doctrines.js';
+import { fogOn, visibleSet, knownCity, tileIndex, isExplored as isExp } from './fog.js';
+import { createArmy } from './units.js';
 
 // A computer warlord. It gets no bonuses (manual 3e): same income, same armies, same rules as a human.
 // What it does each turn, in order: answers hero offers and quests; chooses production; lets every group carry on toward its goal
@@ -23,6 +25,7 @@ export const AI = {
   maxGarrison: 5,
   threatRange: 7,         // enemy armies this close raise the garrison
   exploreRange: 90,       // move points of travel for a hero errand
+  scoutTurns: 20,         // turns a scout keeps exploring before it comes home (fog of war only)
   maxTargets: 10,         // candidate cities examined per group
   patience: 4,            // turns a group waits outside a city it cannot yet beat
   oddsNoise: 0,           // how far a commander's reading of the odds can be off (0 = exact; the odds themselves are exact, see advisor.exactOdds)
@@ -115,19 +118,32 @@ function state(g, realmId) { g.ai ??= {}; return (g.ai[realmId] ??= { groups: []
 const aliveIds = (g, realmId, ids) => ids.filter((id) => { const a = g.armies.get(id); return a && a.owner === realmId && a.x != null; });
 const inAnyGroup = (st) => new Set(st.groups.flatMap((gr) => gr.ids));
 
+// ---- fog of war: the computer plays fair, knowing only what it has explored and what it can see right now ----------------------------------------
+const visOf = (g, realmId) => (fogOn(g) ? (state(g, realmId).vis ??= visibleSet(g, realmId)) : null);
+const seesTile = (g, realmId, x, y) => { const v = visOf(g, realmId); return !v || v.has(tileIndex(g, x, y)); };
+/** What this realm believes about a city: { owner, razed, live, garrison } (null = never seen). With fog off, the plain truth. */
+const believe = (g, realmId, c) => knownCity(g, realmId, c, visOf(g, realmId));
 function enemyNear(g, realmId, city) {
   const k = cfgOf(g, realmId); let n = 0;
-  for (const a of g.armies.values()) if (a.owner && a.owner !== realmId && a.x != null && cheb(a, city) <= k.threatRange) n++;
+  for (const a of g.armies.values()) if (a.owner && a.owner !== realmId && a.x != null && cheb(a, city) <= k.threatRange && seesTile(g, realmId, a.x, a.y)) n++;
   return n;
 }
 const garrisonNeed = (g, realmId, city) => { const k = cfgOf(g, realmId); return Math.min(k.maxGarrison, k.garrison + Math.ceil(enemyNear(g, realmId, city) / 3)); };
 
 // ---- odds ---------------------------------------------------------------------------------------------------------
 function battleInfo(g, armies, tx, ty, noise = 0) {
-  const city = cityAt(g, tx, ty); const defOwner = armiesAt(g, tx, ty)[0]?.owner ?? city?.owner ?? null;
-  const defenders = orderedArmiesAt(g, tx, ty, defOwner);
+  const city = cityAt(g, tx, ty); const me = armies[0].owner; const blind = !seesTile(g, me, tx, ty);
+  let defenders;
+  if (blind) {      // out of sight: judge by the garrison last seen there, or by a guess
+    const k = cfgOf(g, me); const kc = city ? believe(g, me, city) : null; const owner = kc?.owner ?? null;
+    const types = kc?.garrison?.length ? kc.garrison : Array(k.garrison + 1).fill('hinf');
+    defenders = defaultOrder(types.map((t) => createArmy(t, owner)), g.rules);
+  } else {
+    const defOwner = armiesAt(g, tx, ty)[0]?.owner ?? city?.owner ?? null;
+    defenders = orderedArmiesAt(g, tx, ty, defOwner);
+  }
   if (!defenders.length) return { win: 1, lossA: 0 };
-  const e = exactOdds({ attackers: defaultOrder(armies, g.rules), defenders, tile: tileAt(g, tx, ty), cityBonus: tileDefenceBonus(g, tx, ty), rules: g.rules });
+  const e = exactOdds({ attackers: defaultOrder(armies, g.rules), defenders, tile: tileAt(g, tx, ty), cityBonus: tileDefenceBonus(g, tx, ty, me), rules: g.rules });
   const win = noise ? Math.min(1, Math.max(0, e.winChance + (g.rng.next() * 2 - 1) * noise)) : e.winChance;     // a careless commander misjudges the odds by up to +/- noise
   return { win, lossA: e.attackerLosses };
 }
@@ -136,11 +152,12 @@ const oddsAgainst = (g, armies, tx, ty, noise = 0) => battleInfo(g, armies, tx, 
 /** What taking a city is worth, in armies: its income, a bonus for a big production list, a pull toward the human, the realm that hurt us, and the runaway leader. */
 function cityWorth(g, realmId, city) {
   const k = cfgOf(g, realmId); const st = state(g, realmId);
-  let v = (city.income + (city.owner ? 14 : 6)) / 12 + (city.production.length >= 3 ? 0.5 : 0);
-  if (city.owner) {
-    if (g.realms.get(city.owner)?.human) v *= 1 + k.focusHuman;
-    if (city.owner === st.leader) v *= 1 + k.hateLeader;
-    v *= 1 + k.grudge * Math.min(3, st.grudge?.[city.owner] ?? 0);
+  const owner = fogOn(g) ? (believe(g, realmId, city)?.owner ?? null) : city.owner;
+  let v = (city.income + (owner ? 14 : 6)) / 12 + (city.production.length >= 3 ? 0.5 : 0);
+  if (owner) {
+    if (g.realms.get(owner)?.human) v *= 1 + k.focusHuman;
+    if (owner === st.leader) v *= 1 + k.hateLeader;
+    v *= 1 + k.grudge * Math.min(3, st.grudge?.[owner] ?? 0);
   }
   return v;
 }
@@ -255,7 +272,7 @@ function runGroups(g, realmId) {
   for (const grp of [...st.groups]) {
     grp.ids = aliveIds(g, realmId, grp.ids);
     let res = grp.ids.length ? null : 'dead';
-    if (!res) res = grp.kind === 'attack' ? runAttack(g, realmId, grp) : grp.kind === 'explore' ? runExplore(g, realmId, grp) : runReturn(g, realmId, grp);
+    if (!res) res = grp.kind === 'attack' ? runAttack(g, realmId, grp) : grp.kind === 'explore' ? runExplore(g, realmId, grp) : grp.kind === 'scout' ? runScout(g, realmId, grp) : runReturn(g, realmId, grp);
     if (res === 'moving' || res === 'wait') continue;
     st.groups.splice(st.groups.indexOf(grp), 1);
     if (res === 'dead' || res === 'done') continue;       // arrived (they now count as free armies in their city) or lost
@@ -264,7 +281,11 @@ function runGroups(g, realmId) {
 }
 
 // ---- forming new groups -------------------------------------------------------------------------------------------------
-function candidateTargets(g, realmId) { return [...g.cities.values()].filter((c) => c.owner !== realmId && !c.razed); }
+function candidateTargets(g, realmId) {
+  const all = [...g.cities.values()].filter((c) => c.owner !== realmId && !c.razed);
+  if (!fogOn(g)) return all;
+  return all.filter((c) => { const b = believe(g, realmId, c); return b && !b.razed && b.owner !== realmId; });      // only cities it has found
+}
 function chooseTarget(g, realmId, ids, from) {
   const k = cfgOf(g, realmId); const st = state(g, realmId);
   const search = routeSearch(g, ids, { maxCost: k.travelTurns * turnOf(g, ids) });
@@ -314,6 +335,7 @@ function formExplorers(g, realmId) {
     let best = null;
     for (const s of g.sites.values()) {
       if (taken.has(key(s.x, s.y))) continue;
+      if (fogOn(g) && !isExp(g, realmId, s.x, s.y)) continue;      // a site it has not found yet
       if (s.kind === 'ruin' && s.explored) continue; if (s.kind === 'tower') continue;
       if (s.kind === 'temple' && s.blessed.includes(hero.id)) continue; if (s.kind === 'library' && s.studied.includes(hero.id)) continue;
       const r = routeTo(search, s); if (!r) continue;
@@ -323,6 +345,46 @@ function formExplorers(g, realmId) {
     }
     if (best) { st.stats.explored++; st.groups.push({ id: st.nextId++, kind: 'explore', ids, x: best.s.x, y: best.s.y }); ids.forEach((id) => busy.add(id)); taken.add(key(best.s.x, best.s.y)); }
   }
+}
+
+/**
+ * Fog of war: scouts. With nothing known to attack, a realm sends its fastest spare army out to the edge of the explored ground, and on to the next edge,
+ * for `scoutTurns` turns. One scout while the realm is small, two once it holds four cities.
+ */
+function formScouts(g, realmId) {
+  if (!fogOn(g)) return;
+  const st = state(g, realmId); const busy = inAnyGroup(st);
+  const mine = [...g.cities.values()].filter((c) => c.owner === realmId && !c.razed);
+  const want = mine.length >= 4 ? 2 : 1;
+  if (st.groups.filter((x) => x.kind === 'scout').length >= want) return;
+  for (const city of mine) {
+    const free = armiesAt(g, city.x, city.y).filter((a) => a.owner === realmId && !busy.has(a.id) && !a.afloat && !isHero(a) && a.mp > 0);
+    if (free.length < 2) continue;                          // never strip a city of its last defender
+    const s = free.sort((a, b) => moveOf(b, g.rules) - moveOf(a, g.rules))[0];
+    st.groups.push({ id: st.nextId++, kind: 'scout', ids: [s.id], age: 0 }); st.stats.scouts = (st.stats.scouts ?? 0) + 1;
+    return;
+  }
+}
+function runScout(g, realmId, grp) {
+  const ids = aliveIds(g, realmId, grp.ids); if (!ids.length) return 'dead';
+  const k = cfgOf(g, realmId); grp.age = (grp.age ?? 0) + 1;
+  if (grp.age > k.scoutTurns) return 'return';
+  const W = g.width, H = g.height; const a = g.armies.get(ids[0]);
+  const search = routeSearch(g, ids, { maxCost: 14 * turnOf(g, ids) });
+  let best = null;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    if (!isExp(g, realmId, x, y) || (x === a.x && y === a.y)) continue;
+    const i = y * W + x; const cost = Math.min(search.dist[2 * i], search.dist[2 * i + 1]); if (!Number.isFinite(cost)) continue;
+    let edge = false;
+    for (let dy = -1; dy <= 1 && !edge; dy++) for (let dx = -1; dx <= 1; dx++) { const nx = x + dx, ny = y + dy; if (nx >= 0 && ny >= 0 && nx < W && ny < H && !isExp(g, realmId, nx, ny)) { edge = true; break; } }
+    if (!edge) continue;
+    const score = cost + g.rng.next() * 4;
+    if (!best || score < best.score) best = { score, x, y };
+  }
+  if (!best) return 'return';                              // nothing left to find that it can reach
+  const route = routeTo(search, best); if (!route) return 'return';
+  const res = walk(g, realmId, grp, route); if (res.what === 'dead') return 'dead';
+  return 'moving';
 }
 
 /** A realm that takes one of our cities earns a grudge, which fades a tenth each turn. */
@@ -336,7 +398,11 @@ function trackGrudges(g, realmId, st) {
 
 /** The realm holding the most cities, unless that is this realm (or nobody leads by at least one city). */
 function leaderOf(g, realmId) {
-  const n = new Map(); for (const c of g.cities.values()) if (c.owner && !c.razed) n.set(c.owner, (n.get(c.owner) ?? 0) + 1);
+  const n = new Map();
+  for (const c of g.cities.values()) {
+    const b = fogOn(g) ? (c.owner === realmId ? { owner: realmId, razed: !!c.razed } : believe(g, realmId, c)) : { owner: c.owner, razed: !!c.razed };
+    if (b?.owner && !b.razed) n.set(b.owner, (n.get(b.owner) ?? 0) + 1);
+  }
   let best = null, bn = 0, second = 0;
   for (const [id, v] of n) { if (v > bn) { second = bn; bn = v; best = id; } else if (v > second) second = v; }
   return best && best !== realmId && bn > second ? best : null;
@@ -373,11 +439,14 @@ export function aiPlay(g, realmId) {
   for (const a of g.armies.values()) if (a.owner === realmId && isHero(a) && a.perkPoints > 0) aiChoosePerk(g, a.id);
   if (realm.heroOffer && realm.gold - realm.heroOffer.cost >= 150) acceptHero(g, realmId);
   if (realm.questOffer) { const k = realm.questOffer.kind; if (k === 'take-city' || k === 'kill') acceptQuest(g, realmId); else declineQuest(g, realmId); }
+  st.vis = null;
   chooseProduction(g, realmId);
   chooseDoctrine(g, realmId, st.cfg);
   runGroups(g, realmId);
+  st.vis = null;
   formAttackGroups(g, realmId);
   formExplorers(g, realmId);
+  formScouts(g, realmId);
   // anything left standing in the open with no orders goes home
   const busy = inAnyGroup(st); const strays = [];
   for (const a of g.armies.values()) if (a.owner === realmId && a.x != null && !busy.has(a.id) && cityAt(g, a.x, a.y)?.owner !== realmId) strays.push(a.id);

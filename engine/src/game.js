@@ -8,6 +8,7 @@ import { groupMoveCost, canPay, spendMovePoints, groupCanFly, landsAshore } from
 import { isRoughGround, isSea, isLandingKind } from './terrain.js';
 import { dropDeadHeroItems, speedMultiplier, heroTax, makeItem } from './items.js';
 import { questKills, questCapture, checkQuest } from './quests.js';
+import { revealAround, refreshFog, sightOf } from './fog.js';
 import { hasDoctrine, buildTurns, cityHealOf, heroPriceFor, battleXpFor, taxFor } from './doctrines.js';
 import { blankStats, openLedger, stat, earned, spent, logBattle, closeRound } from './stats.js';
 import { cityDefenceBonus, siteDefenceBonus, realmIncome, realmUpkeep, establishCost, validateProductionType,
@@ -162,6 +163,7 @@ export function moveGroup(g, ids, x, y) {
   armies.forEach((a) => { a.x = x; a.y = y; });
   if (landing) armies.forEach((a) => { a.afloat = false; a.mp = 0; });      // coming ashore ends the move
   else if (groupCanFly(armies)) armies.forEach((a) => { a.afloat = false; });  // flyers never need a boat
+  if (g.rules.fog) revealAround(g, owner, x, y, Math.max(...armies.map(sightOf)));
   return { ok: true, cost, landed: landing };
 }
 
@@ -276,6 +278,7 @@ export function attack(g, ids, x, y, { retreat = null, fallBack = null } = {}) {
   }
   const landed = landsAshore(survivors, tile);
   survivors.forEach((a) => { placeArmy(g, a, x, y); if (landed) { a.afloat = false; a.mp = 0; } });
+  refreshFog(g, owner);
   return { ok: true, battle, captureNeeded: false, attackersWon: true, fled: !!battle?.fled, fledTo: battle?.fledTo ?? null };
 }
 
@@ -298,6 +301,7 @@ export function resolveCapture(g, choice) {
   if (fromBoats && !groupCanFly(survivors)) survivors.forEach((a) => { a.afloat = false; if (g.rules.captureFromBoatEndsMove) a.mp = 0; });
   for (const a of survivors) if (isHero(a)) grantXp(a, g.rules.xp.city, g.rules);
   g.pendingCapture = null;
+  refreshFog(g, realmId);
   return { gold, city };
 }
 
@@ -503,6 +507,7 @@ export function beginTurn(g, realmId) {
     a.fresh = false;
     if (a.defending) a.camped = true;
   }
+  refreshFog(g, realmId);
   const q = checkQuest(g, realmId); if (q) events.push(q);
   const offer = rollHeroOffer(g, realmId); if (offer) events.push(offer);
   g.events.push(...events);

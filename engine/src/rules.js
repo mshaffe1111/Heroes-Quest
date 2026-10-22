@@ -58,6 +58,7 @@ export const DEFAULT_RULES = {
   startGold: 1000,
   // --- Heroes Quest combat (our own layer; every number is a PLACEHOLDER until the simulations tune it) ---
   classic: false,             // true = plain Warlords II duels: two hits kill everyone, no lasting wounds, no counters
+  fog: false,                 // fog of war (fog.js): the map starts covered for each realm and clears as it explores
   cityHeal: 2,                // pips an army heals at the start of its realm's turn while standing in one of that realm's cities
   counterBonus: 1,            // strength an army gains in a duel against a type it counters
   heroPips: 4, heroExtraPipLevel: 3,   // a hero has 4 pips, and one more from level 3
