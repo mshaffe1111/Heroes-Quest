@@ -63,3 +63,23 @@ export function confirmBox({ title, text, ok = 'Yes', cancel = 'Cancel', danger 
   });
 }
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// ---- full screen -------------------------------------------------------------------------------------------------------
+const FS_ROOT = () => document.documentElement;
+export const canFullscreen = () => !!(FS_ROOT().requestFullscreen || FS_ROOT().webkitRequestFullscreen);
+export const isFullscreen = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+/** Switch full screen on or off (hides the browser's own bars: a big gain on phones in landscape). */
+export async function toggleFullscreen() {
+  try {
+    if (isFullscreen()) { await (document.exitFullscreen?.() ?? document.webkitExitFullscreen?.()); return; }
+    const el = FS_ROOT(); await (el.requestFullscreen ? el.requestFullscreen({ navigationUI: 'hide' }) : el.webkitRequestFullscreen?.());
+  } catch (e) { toast('This browser would not go full screen. Try "Add to Home Screen" from its menu.'); }
+}
+/** The small button that sits in the corner of the title and the wizard (the game has its own in the top bar). */
+export function fsButton(cls = '') {
+  if (!canFullscreen()) return null;
+  const b = h('button', { class: 'fsbtn ' + cls, 'aria-label': 'Full screen', title: 'Full screen', onclick: (e) => { e.stopPropagation(); toggleFullscreen(); } }, h('span', { html: '<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 8V3h5M12 3h5v5M17 12v5h-5M8 17H3v-5"/></svg>' }));
+  const sync = () => { b.classList.toggle('on', isFullscreen()); b.title = isFullscreen() ? 'Leave full screen' : 'Full screen'; };
+  document.addEventListener('fullscreenchange', sync); document.addEventListener('webkitfullscreenchange', sync); sync();
+  return b;
+}

@@ -4,7 +4,7 @@ import { ARMIES, ARMY_KEYS, isBuildableType } from '../src/index.js';
 
 test('28 army types plus the hero, matching Appendix A', () => {
   assert.equal(ARMY_KEYS.length, 29);
-  const s = (k) => [ARMIES[k].str, ARMIES[k].move, ARMIES[k].classicCost, ARMIES[k].build];     // Warlords II prices; Heroes Quest re-prices some armies (see priceOf)
+  const s = (k) => [ARMIES[k].str, ARMIES[k].move, ARMIES[k].classicCost, ARMIES[k].build];     // the 90s original prices; Heroes Quest re-prices some armies (see priceOf)
   assert.deepEqual(s('scout'), [1, 16, 2, 1]);
   assert.deepEqual(s('hcav'), [4, 16, 8, 3]);
   assert.deepEqual(s('ele'), [8, 16, 15, 4]);
@@ -20,7 +20,7 @@ test('special armies and navies cannot be built in cities', () => {
   for (const k of ['scout', 'hcav', 'ele', 'cat']) assert.equal(isBuildableType(k), true, k);
 });
 
-test('Heroes Quest prices follow toughness: light armies cost less, big ones more, classic mode keeps the Warlords II prices', async () => {
+test('Heroes Quest prices follow toughness: light armies cost less, big ones more, classic mode keeps the the 90s original prices', async () => {
   const { priceOf, makeRules } = await import('../src/index.js');
   const q = makeRules(), c = makeRules({ classic: true });
   assert.ok(priceOf(ARMIES.linf, q) < priceOf(ARMIES.linf, c));

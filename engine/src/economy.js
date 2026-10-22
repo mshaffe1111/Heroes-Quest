@@ -3,7 +3,7 @@ import { isHero } from './units.js';
 import { hasDoctrine, upkeepFractionFor } from './doctrines.js';
 
 // ---- defence bonus a city gives its defenders -------------------------------
-/** Warlords II: player cities +1 (builds 1-2 types) or +2 (builds 3-4); neutral cities +1 (3-4 types) else 0; razed 0. */
+/** the 90s original: player cities +1 (builds 1-2 types) or +2 (builds 3-4); neutral cities +1 (3-4 types) else 0; razed 0. */
 export function cityDefenceBonus(city) {
   if (city.razed) return 0;
   const n = city.production.length;

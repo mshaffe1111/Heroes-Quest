@@ -16,6 +16,7 @@ const DIFFS = [['easy', 'Easy', 'The computer realms are slow, make mistakes and
 let titleView = null, titleTimer = null;
 function root() { let t = $('#title'); if (!t) { t = h('div', { id: 'title', class: 'title' }); $('#app').prepend(t); } t.classList.remove('hidden'); return t; }
 function stopTitleMap() { if (titleView) { titleView.destroy(); titleView = null; } if (titleTimer) cancelAnimationFrame(titleTimer); titleTimer = null; }
+hooks.stopTitle = stopTitleMap;
 
 async function backdrop(host) {
   const canvas = h('canvas'); host.prepend(canvas);
@@ -77,7 +78,7 @@ export function showWizard() {
       const tog = (key, title, text) => { const b = h('button', { class: 'sw' + (st[key] ? ' on' : ''), onclick: () => { st[key] = !st[key]; b.classList.toggle('on', st[key]); } }); return h('div', { class: 'toggle' }, h('div', {}, h('b', {}, title), h('span', {}, text)), b); };
       body = h('div', { style: { maxWidth: '900px', margin: '0 auto' } }, h('div', { class: 'opts', style: { gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))' } }, DIFFS.map(([k, n, d]) => h('button', { class: 'opt' + (st.difficulty === k ? ' on' : ''), onclick: () => { st.difficulty = k; draw(); } }, h('b', {}, n), h('span', {}, d)))),
         h('div', { class: 'sec' }, 'Rules'), tog('fog', 'Fog of war', 'The map starts covered and clears as you explore. Enemies and who owns a city show only when your armies and cities are near. The computer plays by the same rules.'),
-        tog('classic', 'Classic rules', 'Plain Warlords II duels: every army dies after two hits, no lasting wounds, no counters, no doctrines of rank. Leave this off for the full Heroes Quest.'));
+        tog('classic', 'Classic rules', 'Classic two-hit duels: every army dies after two hits, no lasting wounds, no counters, no doctrines of rank. Leave this off for the full Heroes Quest.'));
     }
     const foot = h('div', { class: 'foot' }, h('button', { class: 'btn', onclick: () => (st.step === 1 ? showTitle() : (st.step--, draw())) }, st.step === 1 ? 'Back' : 'Back'),
       st.step < 4 ? h('button', { class: 'btn pri big', onclick: () => { st.step++; draw(); } }, `Next: ${['', 'your hero', 'the world', 'difficulty'][st.step]}`) : h('button', { class: 'btn pri big', onclick: () => begin() }, 'Begin the war'));

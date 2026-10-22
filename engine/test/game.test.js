@@ -174,7 +174,7 @@ test('pillage and sack give gold and damage production; raze burns the city', ()
   const z = run('raze');
   assert.equal(z.city.razed, true); assert.equal(z.city.owner, null);
 });
-test('Warlords III add-on: a razed city can be rebuilt for 800 gp by an army standing there', () => {
+test('later-sequel add-on: a razed city can be rebuilt for 800 gp by an army standing there', () => {
   const g = world();
   E.addCity(g, { id: 'cx', x: 2, y: 1, owner: null, income: 10 });
   g.cities.get('cx').razed = true;

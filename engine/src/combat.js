@@ -4,7 +4,7 @@ import { hasDoctrine, DOCTRINE_NUMBERS } from './doctrines.js';
 import { def, isHero, individualStrength, naturalCommand, heroStrength, heroCommandItems, isFlyingArmy, pipsOf, maxPips, hasPerk, heroCoreStrength } from './units.js';
 
 /**
- * Stack bonus for one side (Warlords II rules):
+ * Stack bonus for one side (the 90s original rules):
  *   hero bonus   = strongest hero's natural command + all command items
  *   non-hero     = the single best stack bonus among the armies (terrain-limited ones only where they apply)
  *   city/camp    = defenders only

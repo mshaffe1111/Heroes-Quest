@@ -15,7 +15,7 @@ import { createArmy } from './units.js';
 // A computer warlord. It gets no bonuses (manual 3e): same income, same armies, same rules as a human.
 // What it does each turn, in order: answers hero offers and quests; chooses production; lets every group carry on toward its goal
 // (attacking when the odds are good, boarding boats when the route needs them); sends heroes with escorts to temples and ruins;
-// forms new attack groups from the armies a city can spare. All numbers are in AI below; none of them are Warlords II rules.
+// forms new attack groups from the armies a city can spare. All numbers are in AI below; none of them are the 90s original rules.
 export const AI = {
   minGroup: 1,            // spare soldiers needed to set out (the odds decide, not the count)
   oddsToAttack: 0.62,     // advisor win chance needed to attack a city

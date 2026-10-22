@@ -318,7 +318,7 @@ export function resolveCapture(g, choice) {
   return { gold, city };
 }
 
-/** Warlords III add-on: rebuild a razed city for 800 gp. Needs a group standing on the ruin. */
+/** later-sequel add-on: rebuild a razed city for 800 gp. Needs a group standing on the ruin. */
 export function rebuildCity(g, realmId, cityId) {
   const city = g.cities.get(cityId);
   const realm = g.realms.get(realmId);
@@ -407,7 +407,7 @@ export function heroHireCost(g, realmId) {
   const n = [...g.armies.values()].filter((a) => a.owner === realmId && isHero(a)).length;
   return heroPriceFor(g.rules, realmId, n === 0 ? g.rules.heroHireFirst : g.rules.heroHireBase + g.rules.heroHirePerHero * (n - 1));
 }
-/** Warlords II: each turn there is a 1 in 6 chance that a hero offers himself for hire, if you can pay. The offer lasts that turn. */
+/** the 90s original: each turn there is a 1 in 6 chance that a hero offers himself for hire, if you can pay. The offer lasts that turn. */
 function rollHeroOffer(g, realmId) {
   const realm = g.realms.get(realmId); realm.heroOffer = null;
   const heroes = [...g.armies.values()].filter((a) => a.owner === realmId && isHero(a)).length;

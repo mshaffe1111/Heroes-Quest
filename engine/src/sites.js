@@ -5,7 +5,7 @@ import { offerQuest } from './quests.js';
 import { grantXp, isHero, heroStrength } from './units.js';
 import { stat, earned } from './stats.js';
 
-// Special sites (manual ch.13): ruins, temples, towers, and the library (Warlords III add-on).
+// Special sites (manual ch.13): ruins, temples, towers, and the library (later-sequel add-on).
 // What the manual states: ruins are always guarded; beating or winning over the guardians explores the ruin, which then yields gold,
 // an artefact, an ally, or a Sage with up to three choices; an explored ruin is useless; a hero who dies leaves it unexplored.
 // Temples bless every army and hero that visits (+1 strength each, once per temple); a hero gains 1 xp when blessed and may be offered a quest.
@@ -95,7 +95,7 @@ export function visitTemple(g, ids) {
   return { ok: true, blessed, quest };
 }
 
-/** Library (Warlords III add-on; numbers are placeholders): a hero studies once per library for experience. */
+/** Library (later-sequel add-on; numbers are placeholders): a hero studies once per library for experience. */
 export function studyLibrary(g, ids) {
   const { hero } = heroGroup(g, ids); if (!hero) return { ok: false, reason: 'needs-a-hero' };
   const site = siteAt(g, hero.x, hero.y); if (!site || site.kind !== 'library') return { ok: false, reason: 'not-a-library' };

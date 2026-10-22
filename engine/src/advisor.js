@@ -4,7 +4,7 @@ import { pipsOf } from './units.js';
 import { makeRng } from './rng.js';
 
 /**
- * Combat advisor (Warlords III add-on) and battle simulator:
+ * Combat advisor (later-sequel add-on) and battle simulator:
  * plays the battle many times and reports the attacker's chance of winning and expected losses.
  */
 export function estimateOdds({ attackers, defenders, tile, cityBonus = 0, camped = false, rules, trials = 2000, seed = 12345 }) {

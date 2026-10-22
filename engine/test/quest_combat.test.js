@@ -141,7 +141,7 @@ test('exact odds agree with playing the battle out across random wounded, mixed 
   }
 });
 
-test('classic mode reproduces the Warlords duel table', () => {
+test('classic mode reproduces the the 90s original duel table', () => {
   const cl = E.makeRules({ classic: true });
   const duel = (sa, sd) => { const q = sa * (20 - sd) / (sa * (20 - sd) + sd * (20 - sa)); return q * q * (3 - 2 * q); };
   const e = E.exactOdds({ attackers: [mk('hinf')], defenders: [mk('hinf', 'B')], tile: open, rules: cl });

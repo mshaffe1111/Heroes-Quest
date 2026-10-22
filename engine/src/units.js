@@ -66,7 +66,7 @@ export function rankOf(a, rules) {
 export const RANK_NAMES = ['', 'Seasoned', 'Veteran'];
 
 // ---- pips and wounds ------------------------------------------------------------------
-/** Most hits this army can take. In classic mode (plain Warlords II) it is two for everyone. */
+/** Most hits this army can take. In classic mode (plain the 90s original) it is two for everyone. */
 export function maxPips(a, rules) {
   if (rules.classic) return rules.hitsToKill;
   return isHero(a) ? rules.heroPips + (a.level >= rules.heroExtraPipLevel ? 1 : 0) + (hasPerk(a, 'tough') ? 1 : 0) : def(a).pips + (rankOf(a, rules) >= 1 ? 1 : 0);

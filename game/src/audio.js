@@ -179,6 +179,8 @@ export function applyOptions() {
   else if (base || over) { (over ?? base).el.play().catch(() => {}); if (!over && base) fadeIn(base, 1); }
   else if (wanted) { scene = null; setScene(wanted); }
 }
+/** Skip to the other map theme (only while the map music is playing). dir = +1 / -1. Returns the new title. */
+export function skipTrack(dir = 1) { if (!ctx || !unlocked || scene !== 'map' || over || !optOn('music')) return nowPlaying; mapIdx = (mapIdx + (dir > 0 ? 1 : 1)) % 2; const next = () => { mapIdx = (mapIdx + 1) % 2; startBase(`map${mapIdx + 1}`, false, next); }; startBase(`map${mapIdx + 1}`, false, next); return nowPlaying; }
 export const startMusic = () => applyOptions();
 export const stopMusic = () => applyOptions();
 export const syncMusic = () => applyOptions();

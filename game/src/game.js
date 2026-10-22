@@ -3,7 +3,7 @@ import * as E from '../../engine/src/index.js';
 import { generateMap } from '../../engine/src/mapgen/index.js';
 import { S, hooks, theRealm, medalImg, realmOf, colorOf, unitName, realmName, myCities, economy, unitLine } from './state.js';
 import { MapView, loadAssets, realmHex } from './view.js';
-import { h, $, $$, toast, sleep, openModal, frame, closeAllModals, modalOpen, topModal, crest, num, confirmBox, plural } from './ui.js';
+import { h, $, $$, toast, sleep, openModal, frame, closeAllModals, modalOpen, topModal, crest, num, confirmBox, plural, toggleFullscreen, fsButton } from './ui.js';
 import * as D from './dialogs.js';
 import { TP } from './paint.js';
 import { initAudio, sfx, stepSound, setScene } from './audio.js';
@@ -31,7 +31,7 @@ let skeletonMade = false;
 function skeleton() {
   if (skeletonMade) return; skeletonMade = true;
   const app = $('#app');
-  const menu = (title, items) => h('div', { class: 'mi' }, h('button', { class: 'mb', onclick: (e) => { e.stopPropagation(); const mi = e.currentTarget.parentElement; const was = mi.classList.contains('open'); $$('.mi.open').forEach((x) => x.classList.remove('open')); if (!was) mi.classList.add('open'); } }, title),
+  const menu = (title, items) => h('div', { class: 'mi' }, h('button', { class: 'mb', onclick: (e) => { e.stopPropagation(); const mi = e.currentTarget.parentElement; const was = mi.classList.contains('open'); $$('.mi.open').forEach((x) => x.classList.remove('open')); if (!was) { mi.classList.add('open'); const dd = mi.querySelector('.dd'), r = e.currentTarget.getBoundingClientRect(); dd.style.left = Math.max(6, Math.min(r.left, innerWidth - dd.offsetWidth - 6)) + 'px'; dd.style.top = r.bottom + 'px'; dd.style.maxHeight = (innerHeight - r.bottom - 8) + 'px'; } } }, title),
     h('div', { class: 'dd' }, items.map((it) => it === '-' ? h('hr') : h('button', { 'data-act': it[2] ?? '', onclick: () => { $$('.mi.open').forEach((x) => x.classList.remove('open')); it[1](); } }, h('span', {}, it[0]), it[3] ? h('kbd', {}, it[3]) : null))));
   const idle = () => !S.sel;
   const top = h('div', { id: 'top' },
@@ -39,13 +39,13 @@ function skeleton() {
     menu('Army', [['Next army', () => nextArmy(), '', 'N'], ['Fortify', () => order('fortify'), '', 'F'], ['Done for this turn', () => order('done'), '', 'D'], ['Wake up', () => order('wake'), '', 'W'], '-', ['Disband…', () => order('disband')]]),
     menu('Cities', [['Your cities…', () => D.openCities()], ['Doctrines…', () => D.openDoctrines()]]),
     menu('Reports', [['The realms', () => D.openRealms()], ['Battle history', () => D.openHistory()]]),
-    menu('View', [['Zoom in', () => zoom(1.25), '', '+'], ['Zoom out', () => zoom(0.8), '', '−'], ['Whole map', () => S.view.fit()], ['Centre on selection', () => centreSel(), '', 'C'], ['Small map on/off', () => toggleMini(), '', 'M']]),
+    menu('View', [['Full screen', () => toggleFullscreen(), '', 'F11'], '-', ['Zoom in', () => zoom(1.25), '', '+'], ['Zoom out', () => zoom(0.8), '', '−'], ['Whole map', () => S.view.fit()], ['Centre on selection', () => centreSel(), '', 'C'], ['Small map on/off', () => toggleMini(), '', 'M']]),
     menu('Options', [['Options…', () => D.openOptions()]]),
     menu('Help', [['How to play', () => D.openHelp()]]),
-    h('span', { class: 'sp' }), h('span', { class: 'turn', id: 'turnlbl' }), h('span', { class: 'realm', id: 'realmlbl' }));
+    h('span', { class: 'sp' }), fsButton('bar'), h('span', { class: 'turn', id: 'turnlbl' }), h('span', { class: 'realm', id: 'realmlbl' }));
   const stage = h('div', { id: 'stage' },
     h('div', { id: 'mapwrap' }, h('canvas', { id: 'map' }), h('canvas', { id: 'minimap', width: 220, height: 140 }), h('div', { id: 'toast' })),
-    h('div', { id: 'panel' }), h('div', { id: 'bottom' }, h('div', { id: 'cards' }), h('div', { id: 'endwrap' }, h('div', { id: 'msg' }), h('button', { class: 'btn pri', id: 'endbtn', onclick: () => endTurnClick() }, 'End turn'))));
+    h('div', { id: 'panel' }), h('div', { id: 'bottom' }, h('div', { id: 'cards' }), h('div', { id: 'endwrap' }, h('div', { id: 'miniord' }, h('button', { class: 'btn sm', onclick: () => order('fortify') }, 'Fortify'), h('button', { class: 'btn sm', onclick: () => order('done') }, 'Done'), h('button', { class: 'btn sm', onclick: () => nextArmy() }, 'Next'), h('button', { class: 'btn sm', onclick: () => { const c = S.sel && E.cityAt(S.g, S.sel.x, S.sel.y); if (c) D.openCity(c.id); else toast('Select an army inside a city first.'); } }, 'City')), h('div', { id: 'msg' }), h('button', { class: 'btn pri', id: 'endbtn', onclick: () => endTurnClick() }, 'End turn'))));
   app.append(h('div', { id: 'game', class: 'hidden', style: { position: 'absolute', inset: 0 } }, top, stage), h('div', { id: 'modals' }));
   document.addEventListener('pointerdown', (e) => { if (!e.target.closest('.mi')) $$('.mi.open').forEach((x) => x.classList.remove('open')); });
   document.addEventListener('keydown', onKey);
@@ -56,7 +56,7 @@ function skeleton() {
 export async function enterGame(g, { resume = false } = {}) {
   skeleton();
   S.g = g; S.meta = g.meta ?? {}; S.me = [...g.realms.values()].find((r) => r.human)?.id ?? [...g.realms.keys()][0]; S.sel = null; S.path = null; S.busy = false;
-  $('#title')?.classList.add('hidden'); $('#game').classList.remove('hidden'); setScene('map');
+  hooks.stopTitle?.(); document.body.classList.add('ingame'); $('#title')?.classList.add('hidden'); $('#game').classList.remove('hidden'); setScene('map');
   S.view?.destroy();
   const old = $('#map'); const cv = old.cloneNode(false); old.replaceWith(cv);
   const view = new MapView(cv, g, S.assets, { me: S.me, onTile, onHover });
@@ -72,7 +72,7 @@ export async function enterGame(g, { resume = false } = {}) {
   if (resume) { selectNextOnStart(); await offers(); return; }
   await startTurn();
 }
-function leaveGame() { S.view?.destroy(); S.view = null; $('#game').classList.add('hidden'); closeAllModals(); S.g = null; }
+function leaveGame() { document.body.classList.remove('ingame'); S.view?.destroy(); S.view = null; $('#game').classList.add('hidden'); closeAllModals(); S.g = null; }
 hooks.toTitle = async () => { if (S.busy) { toast('The other realms are still playing. Wait a moment.'); return; } if (S.g && !S.g.over) D.doAutosave(); leaveGame(); const { showTitle } = await import('./newgame.js'); showTitle(); };
 hooks.loadSlot = (slot) => { if (S.busy) { toast('The other realms are still playing. Wait a moment.'); return; } const r = E.loadFromSlot(D.saveStore, slot); if (!r.ok) { toast('That save could not be loaded: ' + r.reason.replaceAll('-', ' '), 'bad'); return; } hooks.loadGame(r.game); };
 hooks.loadGame = (game) => { closeAllModals(); S.view?.destroy(); enterGame(game, { resume: true }); };
@@ -241,7 +241,7 @@ function preview(x, y) {
   const last = r.steps[r.steps.length - 1]; const full = Math.max(1, E.limitingMovePoints(armies.map((a) => ({ ...a, mp: Math.max(a.mp, 1) })))); const mp = E.limitingMovePoints(armies);
   const extra = r.cost <= mp ? 0 : Math.ceil((r.cost - mp) / full); let label = extra === 0 ? 'This turn' : extra === 1 ? 'Next turn' : `In ${extra} turns`; let odds = null;
   if (last.action === 'attack') {
-    odds = oddsFor(armies, x, y); label = odds ? `Attack · ${Math.round(odds.winChance * 100)}%` : 'Attack';
+    odds = oddsFor(armies, x, y); label = odds && S.opts.odds !== false ? `Attack · ${Math.round(odds.winChance * 100)}%` : 'Attack';
     // FIX: the attack step itself needs move points (the target square's cost); say so instead of failing later with a 2-second toast
     if (r.steps.length === 1 && !E.canPay(armies, E.groupMoveCost(armies, E.tileAt(g, x, y), g.rules))) label += ' · not enough moves left';
   }
@@ -275,7 +275,7 @@ async function executeInner(p) { const ids = S.sel.ids.slice(); S.busy = true; S
     moved++; stepSound(); const a0 = g.armies.get(ids[0]); S.sel.x = a0.x; S.sel.y = a0.y; S.view.sel = { x: a0.x, y: a0.y }; S.view.touch();
     if (S.opts.follow !== false) S.view.centerOn(a0.x, a0.y);      // the camera stays on what is moving, as in the original
     else { const sc = S.view.toScreen(a0.x, a0.y); if (sc.x < 80 || sc.y < 80 || sc.x > S.view.w - 80 || sc.y > S.view.h - 80) S.view.centerOn(a0.x, a0.y); }
-    await sleep(S.opts.moveMs ?? 120);
+    await sleep(20 + (100 - (S.opts.moveSpeed ?? 60)) * 2.2);
   }
   S.busy = false;
   if (stopped === 'no-move-points' || (!stopped && false)) { const goal = p.steps.filter((s) => s.action !== 'attack').pop(); if (goal && stopped) { ids.forEach((id) => { const a = g.armies.get(id); if (a) a.goal = { x: goal.x, y: goal.y }; }); toast('The armies will keep marching next turn.'); } }

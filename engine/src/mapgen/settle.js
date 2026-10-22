@@ -60,7 +60,7 @@ export function oceanMask(terr, W, H) { // sea water connected to the map edge (
 /**
  * Realms: capitals spread as far apart as possible (so on a split or island map some realms start alone on their own land),
  * home territory by travel distance (crossing water is allowed but very costly, so islands go to the nearest realm).
- * Warlords-style start: each realm owns only its capital; every other city is held by the neutral "Unsworn".
+ * the 90s original-style start: each realm owns only its capital; every other city is held by the neutral "Unsworn".
  */
 export function placeRealms(ctx, cities, nRealms, rng, opts = {}) {
   const { terr, W, H, block } = ctx; const N = W * H;

@@ -1,4 +1,4 @@
-// The 28 army types + hero from Warlords II Appendix A (verified from the manual scans).
+// The 28 army types + hero from the 90s original Appendix A (verified from the manual scans).
 // Terrain letters: C city (incl. ruins, camps, sacred sites), O open, R road, W woods, H hills.
 //   indiv       : +amount strength to this army only, in the listed terrain
 //   stack       : +amount to the whole stack (the best single one counts), in the listed terrain (or everywhere)
@@ -39,7 +39,7 @@ export const ARMIES = {
   hero:   a('hero',   'Hero',           5, 14,  0, 0, { hero: true, buildable: false }),
 };
 
-// ---- Heroes Quest additions (our own layer on top of the Warlords II numbers) -----------------------------------
+// ---- Heroes Quest additions (our own layer on top of the the 90s original numbers) -----------------------------------
 // Pips: how many hits an army can take before it falls. PLACEHOLDER numbers, tuned by simulation (see COMBAT_DESIGN_DRAFT.md).
 //   Light troops and scouts 2, medium foot and horse 3, big and winged beasts and every special army 4, the Dragon 6, boats 4. A hero has 4, plus one at level 3.
 const PIPS = { scout: 2, bat: 2, linf: 2, orc: 2, lcav: 2, cat: 2,
@@ -48,8 +48,8 @@ const PIPS = { scout: 2, bat: 2, linf: 2, orc: 2, lcav: 2, cat: 2,
   wiz: 4, wyrm: 4, undead: 4, demon: 4, elem: 4, devil: 4, arch: 4, drag: 6, hero: 4 };
 // Counters: this army fights one strength better against the listed types (that duel only, shown in the advisor).
 const BEATS = { pike: ['lcav', 'hcav', 'wolf'], elf: ['bat', 'peg', 'grif', 'drag'], lcav: ['elf', 'cat'], hcav: ['elf', 'cat'], giant: ['pike'] };
-// Prices: with toughness varying by class, plain Warlords II prices would make big armies far better value and cheap ones poor (a pip is worth ~15 points of
-// standing). These prices keep every buildable army's equal-gold standing where it is in Warlords II (balance.mjs / reprice.mjs). Classic mode uses classicCost.
+// Prices: with toughness varying by class, plain the 90s original prices would make big armies far better value and cheap ones poor (a pip is worth ~15 points of
+// standing). These prices keep every buildable army's equal-gold standing where it is in the 90s original (balance.mjs / reprice.mjs). Classic mode uses classicCost.
 const PRICE = { linf: 2, orc: 3, lcav: 4, cat: 15, giant: 13, mino: 13, spid: 16, peg: 14, grif: 21, uni: 19, ele: 20 };
 for (const k of Object.keys(ARMIES)) { ARMIES[k].classicCost = ARMIES[k].cost; if (PRICE[k]) ARMIES[k].cost = PRICE[k]; ARMIES[k].pips = PIPS[k] ?? 3; if (BEATS[k]) ARMIES[k].beats = BEATS[k]; }
 
@@ -57,5 +57,5 @@ export const ARMY_KEYS = Object.keys(ARMIES);
 export const isSpecialType = (k) => !!ARMIES[k].special;
 export const isBuildableType = (k) => !ARMIES[k].special && ARMIES[k].buildable !== false && k !== 'hero';
 
-/** What an army costs to build under these rules (classic mode keeps the Warlords II prices). */
+/** What an army costs to build under these rules (classic mode keeps the the 90s original prices). */
 export const priceOf = (d, rules) => (rules.classic ? d.classicCost : d.cost);

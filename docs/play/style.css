@@ -17,7 +17,7 @@ button{font-family:var(--body);cursor:pointer}
 #top .mi{position:relative}
 #top .mb{background:none;border:0;color:inherit;font:inherit;letter-spacing:inherit;text-transform:inherit;padding:0 10px;height:36px}
 #top .mb:hover,#top .mi.open .mb{color:#fff;background:#101c2e}
-.dd{position:absolute;top:36px;left:0;min-width:230px;background:#0b1320;border:1px solid var(--gl-lo);box-shadow:0 14px 34px rgba(0,0,0,.6);padding:5px 0;display:none;letter-spacing:.02em;text-transform:none}
+.dd{position:fixed;top:36px;left:0;min-width:230px;max-width:calc(100vw - 12px);overflow-y:auto;background:#0b1320;border:1px solid var(--gl-lo);box-shadow:0 14px 34px rgba(0,0,0,.6);padding:5px 0;display:none;letter-spacing:.02em;text-transform:none}
 .mi.open .dd{display:block}
 .dd button{display:flex;width:100%;justify-content:space-between;gap:20px;background:none;border:0;color:#dfe8f3;font:600 13px var(--body);padding:8px 16px;text-align:left}
 .dd button:hover{background:#17283f;color:#fff}.dd button[disabled]{color:#5d6b82;cursor:default;background:none}
@@ -168,3 +168,19 @@ table.t th:first-child,table.t td:first-child{text-align:left}table.t td{padding
  .frame{padding:18px 16px}.arena{grid-template-columns:1fr}
  #top{overflow-x:auto}
 }
+.sub2{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:0 14px 10px;margin:-4px 0 8px;background:#0f1a2a;box-shadow:inset 0 0 0 1px #2a3447;border-top:0}
+.vol{display:flex;align-items:center;gap:10px;flex:1;min-width:230px}.vol span{font:600 12.5px var(--body);color:#c7d6e8;white-space:nowrap}.vol input{flex:1;accent-color:var(--gl)}.vol output{width:28px;text-align:right;font:700 13px var(--body);color:#fff}
+.now{display:flex;align-items:center;gap:8px;font:500 12.5px var(--body);color:#a9bad0}.now b{color:#fff;margin:0}
+.segs{display:flex;gap:0;flex:none}.seg{background:#26344a;color:#c7d6e8;border:0;padding:7px 10px;font:600 12.5px var(--body)}.seg.on{background:var(--gl);color:#10151f}
+.toggle .segs{margin-left:10px}
+/* full screen button and phone safe areas */
+.fsbtn{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;background:rgba(11,19,32,.72);color:var(--gl);border:1px solid var(--gl-lo);border-radius:6px;padding:0;cursor:pointer}
+.fsbtn:hover,.fsbtn.on{background:var(--gl);color:#10151f}
+.fsbtn.float{position:fixed;z-index:40;right:max(10px,env(safe-area-inset-right));top:max(10px,env(safe-area-inset-top))}
+body.ingame #fsfloat{display:none}
+.fsbtn.bar{width:34px;height:28px;margin-right:10px;align-self:center}
+#top{padding-left:max(0px,env(safe-area-inset-left));padding-right:max(0px,env(safe-area-inset-right))}
+#app{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);padding-bottom:env(safe-area-inset-bottom);box-sizing:border-box}
+
+#miniord{display:none;gap:6px}
+@media (max-width:860px){#miniord{display:flex}#miniord .btn{height:40px;min-width:58px}#endwrap{flex-wrap:wrap}}

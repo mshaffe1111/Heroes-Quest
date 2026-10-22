@@ -1,8 +1,8 @@
 // Every number the engine uses lives here so it can be changed without touching code.
-// Items marked PLACEHOLDER are not in the Warlords II manual text we have; they are
+// Items marked PLACEHOLDER are not in the the 90s original manual text we have; they are
 // reasonable guesses and are listed for Matt to confirm.
 export const DEFAULT_RULES = {
-  // --- verified against the Warlords II manual / encyclopedia ---
+  // --- verified against the the 90s original manual / encyclopedia ---
   stackLimit: 8,              // armies per square
   cityGarrisonLimit: 32,      // a city defends with everything inside it, up to 32
   dieSize: 20,                // normal combat
@@ -39,12 +39,12 @@ export const DEFAULT_RULES = {
   ruinBaseWin: 0.88, ruinPerStrength: 0.03, ruinPerArmy: 0.02, ruinWinMin: 0.35, ruinWinMax: 0.98,   // PLACEHOLDER: a hero's one-roll chance against a ruin guardian
   ruinGold: [150, 600],       // PLACEHOLDER
   ruinRewardWeights: { gold: 30, item: 30, ally: 25, sage: 15 },   // PLACEHOLDER mix of gold / artefact / ally / sage
-  libraryXp: 2,               // PLACEHOLDER (Warlords III library)
+  libraryXp: 2,               // PLACEHOLDER (the later sequel library)
   heroOfferChance: 1 / 6,     // VERIFIED (Heeter): a 1 in 6 chance each turn, if you can afford one
   heroHireFirst: 100,         // PLACEHOLDER: price of a hero when you have none
   heroHireBase: 300, heroHirePerHero: 150,   // PLACEHOLDER: later heroes cost more
   flagVectorPerTurn: 4,       // VERIFIED (manual 15b): at most four armies per turn reach a planted standard
-  // --- Warlords III add-ons you picked ---
+  // --- later-sequel add-ons you picked ---
   rebuildRazedCityCost: 800,
   // --- PLACEHOLDERS (not in the text we have) ---
   damageCarriesOver: true,    // VERIFIED (Heeter rules page): a wound carries into the next fight of the same battle
@@ -57,7 +57,7 @@ export const DEFAULT_RULES = {
   sackGoldPerIncome: 12,
   startGold: 1000,
   // --- Heroes Quest combat (our own layer; every number is a PLACEHOLDER until the simulations tune it) ---
-  classic: false,             // true = plain Warlords II duels: two hits kill everyone, no lasting wounds, no counters
+  classic: false,             // true = classic two-hit duels: two hits kill everyone, no lasting wounds, no counters
   fog: false,                 // fog of war (fog.js): the map starts covered for each realm and clears as it explores
   cityHeal: 2,                // pips an army heals at the start of its realm's turn while standing in one of that realm's cities
   counterBonus: 1,            // strength an army gains in a duel against a type it counters

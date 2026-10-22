@@ -1,7 +1,7 @@
 // A map tile: { terrain: 'open'|'woods'|'hills'|'swamp'|'mountain'|'water', road?: bool, shore?: bool,
 //               site?: 'ruin'|'temple'|'tower', port?: bool, bridge?: bool }.
 // Cities are kept by the game and mark the tile with cityId.
-//   port   : a coastal LAND square marked with an anchor - armies may embark and disembark here (Warlords II).
+//   port   : a coastal LAND square marked with an anchor - armies may embark and disembark here (the 90s original).
 //   bridge : a WATER square that carries a bridge deck (river bridge or sea causeway). Walkers cross it at road cost,
 //            boats sail under it, and it is an embark / disembark point.
 export const TERRAINS = ['open', 'woods', 'hills', 'swamp', 'mountain', 'water'];

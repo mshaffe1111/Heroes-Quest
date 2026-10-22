@@ -136,7 +136,7 @@ test('Intense Combat uses the 24-sided die', () => {
   assert.ok(seen.length && seen.every((n) => n === 24));
 });
 
-// ---- does the maths feel like Warlords? ---------------------------------------------
+// ---- does the maths feel like the 90s original? ---------------------------------------------
 const winRate = (att, dfn, tile, n = 4000, opts = {}) => {
   const rng = makeRng(2024);
   let w = 0;
@@ -154,7 +154,7 @@ test('quality beats quantity: a dragon usually beats eight scouts, yet a scout c
   const hopeless = winRate([mk('scout')], [mk('drag', { owner: 'B' })], open, 20000);
   assert.ok(hopeless < 0.001, `scout vs dragon ${hopeless}`);       // 2 pips against 6: toughness matters in Heroes Quest
   const fluke = winRate([mk('scout')], [mk('drag', { owner: 'B' })], open, 20000, { rules: classic });
-  assert.ok(fluke > 0 && fluke < 0.02, `classic scout vs dragon ${fluke}`);   // plain Warlords II duels: a lucky scout can still do it
+  assert.ok(fluke > 0 && fluke < 0.02, `classic scout vs dragon ${fluke}`);   // classic two-hit duels: a lucky scout can still do it
 });
 test('a catapult makes a walled city much easier to take', () => {
   const dfn = () => [mk('pike', { owner: 'B' }), mk('pike', { owner: 'B' }), mk('hinf', { owner: 'B' })];

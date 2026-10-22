@@ -3,7 +3,7 @@ import * as E from '../../engine/src/index.js';
 import { S, hooks, theRealm, medalImg, realmOf, colorOf, unitName, realmName, myCities, economy, unitLine } from './state.js';
 import { h, frame, openModal, closeAllModals, toast, confirmBox, crest, num, sleep, esc, REALM_LOOK, plural } from './ui.js';
 import { realmHex } from './view.js';
-import { sfx, syncMusic, pushBattle, popBattle, setScene, testSound } from './audio.js';
+import { sfx, syncMusic, pushBattle, popBattle, setScene, testSound, skipTrack, trackTitle, applyOptions as applyVolumes } from './audio.js';
 
 const typeName = (t) => E.ARMIES[t].name;
 const pipsRow = (a) => { const max = E.maxPips(a, S.g.rules), cur = E.pipsOf(a, S.g.rules); return h('div', { class: 'pips' }, Array.from({ length: max }, (_, i) => h('i', { class: i < cur ? '' : 'w' }))); };
@@ -179,11 +179,29 @@ export function openHelp() {
     h('div', { class: 'sec' }, 'Keys'), row('N or Space', 'Next army that still has orders.'), row('F · D · W', 'Fortify (hold the ground), Done for this turn, Wake up.'), row('Enter', 'Confirm the route that is showing.'), row('Esc', 'Cancel the route, then deselect.'), row('E', 'End your turn.'), row('+ · − · arrows · C', 'Zoom, scroll, centre on the selected army.'), row('M', 'Show or hide the small map.'),
     h('div', { class: 'foot' }, h('button', { class: 'btn pri', onclick: () => m.close() }, 'Close'))], { width: 760, onClose: () => m.close() }));
 }
+export const DEFAULT_OPTS = { odds: true, autoNext: true, sound: true, music: true, replay: true, follow: true, moveSpeed: 60, musicVol: 70, fxVol: 85, quietHidden: true, confirmEnd: true, enemyMode: 'watch' };
 export function openOptions() {
-  let m; const tog = (key, title, text) => { const b = h('button', { class: 'sw' + (S.opts[key] ? ' on' : ''), onclick: () => { S.opts[key] = !S.opts[key]; b.classList.toggle('on', S.opts[key]); try { localStorage.setItem('hq-opts', JSON.stringify(S.opts)); } catch {} syncMusic(); hooks.refresh(); } });
-    return h('div', { class: 'toggle' }, h('div', {}, h('b', {}, title), h('span', {}, text)), b); };
-  m = openModal(frame([h('h2', { style: { fontSize: '28px', marginBottom: '14px' } }, 'Options'), tog('odds', 'Combat advisor', 'Show your chance of winning when you point an army at an enemy.'), tog('autoNext', 'Jump to the next army', 'After an army has moved, select the next one that still has orders.'), tog('sound', 'Sound effects', 'Marching, fighting, bells and horns.'), tog('music', 'Music', 'A slow, quiet score that plays while you think.'), tog('replay', 'Replay attacks on you', 'Show each fight when a computer realm attacks you during its turn.'),
-    h('div', { class: 'foot' }, h('button', { class: 'btn pri', onclick: () => m.close() }, 'Done'))], { width: 560, onClose: () => m.close() }));
+  let m; const save = () => { try { localStorage.setItem('hq-opts', JSON.stringify(S.opts)); } catch { /* private mode */ } syncMusic(); hooks.refresh(); };
+  const sw = (key, extra) => { const b = h('button', { class: 'sw' + (S.opts[key] !== false ? ' on' : ''), role: 'switch', 'aria-checked': String(S.opts[key] !== false), onclick: () => { S.opts[key] = S.opts[key] === false ? true : !S.opts[key]; b.classList.toggle('on', S.opts[key] !== false); b.setAttribute('aria-checked', String(S.opts[key] !== false)); extra?.(); save(); } }); return b; };
+  const row = (title, text, ...ctl) => h('div', { class: 'toggle' }, h('div', {}, h('b', {}, title), h('span', {}, text)), ...ctl);
+  const slider = (key, label, onChange) => { const out = h('output', {}, String(S.opts[key] ?? 0)); const inp = h('input', { type: 'range', min: 0, max: 100, step: 1, value: S.opts[key] ?? 0, 'aria-label': label, oninput: () => { S.opts[key] = +inp.value; out.textContent = inp.value; onChange?.(); }, onchange: save });
+    return h('div', { class: 'vol' }, h('span', {}, label), inp, out); };
+  const now = h('b', {}, trackTitle() || '—'); const np = h('div', { class: 'now' }, h('span', { class: 'eyebrow' }, 'Now playing'), now,
+    h('button', { class: 'btn sm', 'aria-label': 'Previous track', onclick: () => { now.textContent = skipTrack(-1) || '—'; } }, '‹'), h('button', { class: 'btn sm', 'aria-label': 'Next track', onclick: () => { now.textContent = skipTrack(1) || '—'; } }, '›'));
+  const modeBtns = [['watch', 'Watch every move'], ['quick', 'Quick'], ['hidden', 'Hidden']].map(([v, t]) => { const b = h('button', { class: 'seg' + (S.opts.enemyMode === v ? ' on' : ''), onclick: () => { S.opts.enemyMode = v; modeBtns.forEach((x) => x.classList.toggle('on', x === b)); save(); } }, t); return b; });
+  const body = [h('h2', { style: { fontSize: '28px', marginBottom: '4px' } }, 'Options'), h('p', { class: 'sub' }, 'Changes apply at once and are saved on this device.'),
+    h('div', { class: 'eyebrow', style: { margin: '10px 0 6px' } }, 'Sound'),
+    row('Music', 'Orchestral score. Different tracks for the map, battles and your menus.', sw('music')), h('div', { class: 'sub2' }, slider('musicVol', 'Music volume', () => applyVolumes()), np),
+    row('Sound effects', 'Swords, hooves, gold, gates and fanfares.', sw('sound')), h('div', { class: 'sub2' }, slider('fxVol', 'Effects volume', () => applyVolumes()), h('button', { class: 'btn sm', onclick: () => testSound() }, 'Test')),
+    row('Quiet when you switch tabs', 'Pauses music and effects while the game is in the background.', sw('quietHidden')),
+    h('div', { class: 'eyebrow', style: { margin: '14px 0 6px' } }, 'Game flow'),
+    row('Enemy turns', 'Every enemy army moves in turn while the camera follows it. Tap to skip an army, or skip the rest.', h('div', { class: 'segs' }, modeBtns)),
+    row('Camera follows armies', 'Centres the map on each army as it moves, on your turn and theirs.', sw('follow')), h('div', { class: 'sub2' }, slider('moveSpeed', 'Movement speed', save)),
+    row('Combat advisor', 'Show your chance of winning when you point an army at an enemy.', sw('odds')),
+    row('Jump to the next army', 'After an army has moved, select the next one that still has orders.', sw('autoNext')),
+    row('Confirm End turn', 'Ask first if some of your armies still have moves left.', sw('confirmEnd')),
+    h('div', { class: 'foot', style: { justifyContent: 'space-between' } }, h('button', { class: 'btn sm', onclick: () => { Object.assign(S.opts, DEFAULT_OPTS); save(); m.close(); openOptions(); } }, 'Reset to defaults'), h('button', { class: 'btn pri', onclick: () => m.close() }, 'Done'))];
+  m = openModal(frame(body, { width: 640, onClose: () => m.close() }));
 }
 
 // ===== saves ===================================================================================================================
