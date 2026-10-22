@@ -556,3 +556,10 @@ body.pl #cmddesel,body.pp #cmddesel{order:13}body.pl #cmdsearch,body.pp #cmdsear
 .scenecard .foot{position:sticky;bottom:-20px;margin:12px -20px -20px;padding:12px 20px;flex-wrap:wrap;gap:8px;background:linear-gradient(180deg,rgba(40,40,46,.85),rgba(20,20,24,.95));z-index:2}
 .scenecard .foot .btn{flex:1 1 auto;min-height:46px;white-space:normal}
 @media (max-height:520px){.scenecard .scene{max-height:20vh}.levelup .perk p{font-size:12.5px}.levelup .perk{padding:8px 10px}}
+/* new-game steps on phones: "Step 2 of 5" instead of a row that runs off the screen; compact when held sideways */
+.wiz .stepof{display:none;letter-spacing:.08em;color:var(--parch)}
+@media (max-width:760px){.wiz .steps{display:none}.wiz .stepof{display:inline}.wiz .head{padding:10px 14px}.wiz .head h2{font-size:26px}.wiz .body{padding:12px 12px}.wiz .foot{padding:10px 12px 12px}.wiz .foot .btn{min-height:46px}}
+@media (max-height:520px){.wiz .steps{display:none}.wiz .stepof{display:inline}.wiz .head{padding:6px 16px}.wiz .head h2{font-size:22px}.wiz .body{padding:8px 16px}.wiz .foot{padding:6px 16px 8px}.wiz .foot .btn{min-height:40px;padding-top:0;padding-bottom:0}}
+@media (max-width:760px){table.t.cities th:nth-child(2),table.t.cities td:nth-child(2),table.t.cities th:nth-child(5),table.t.cities td:nth-child(5){display:none}table.t.cities td{padding:8px 6px}}
+@media (max-height:520px) and (min-width:700px){.rcards{grid-template-columns:repeat(4,minmax(0,1fr))!important}.rcard{padding:8px!important}}
+@media (max-height:520px){.capgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.capgrid .opt.cap{margin-bottom:0!important}}

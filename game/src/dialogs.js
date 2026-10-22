@@ -139,8 +139,8 @@ export function askCapture(cityId) {
     const row = (key, title, text) => h('button', { class: 'opt cap', style: { width: '100%', marginBottom: '8px' }, onclick: () => choose(key) }, h('div', { class: 'caprow' }, h('b', {}, title), gp(key) != null ? h('span', { class: 'capgold' + (gp(key) ? '' : ' none') }, gp(key) ? `+${num(gp(key))} gold` : 'no gold') : null), h('span', {}, text));
     const lostName = out?.sack.kindLost ? E.ARMIES[out.sack.kindLost].name : null;
     m = openModal(frame([h('div', { class: 'eyebrow' }, 'The gates open'), h('h2', {}, `${city.name} is yours`), h('p', { class: 'sub', style: { margin: '10px 0 16px' } }, `What will you do with the city of ${theRealm(prev)}?`),
-      row('occupy', 'Occupy', 'Keep it whole. It pays you its income from next turn and can build for you.'), row('pillage', 'Pillage', 'Take its coffers, keep the city. A lean haul, no ruin.'),
-      row('sack', 'Sack', lostName ? `Take its coffers and a lot more, and leave it burning. It forgets how to build ${lostName}.` : 'Take its coffers and leave it burning. It builds nothing, so there is no more to take.'), row('raze', 'Raze', `Take what you can carry and burn the rest. The city is gone until someone rebuilds it for ${num(g.rules.rebuildRazedCityCost ?? 800)} gold.`)], { width: 560, closeButton: false }), { dismiss: false });
+      h('div', { class: 'capgrid' }, row('occupy', 'Occupy', 'Keep it whole. It pays you its income from next turn and can build for you.'), row('pillage', 'Pillage', 'Take its coffers, keep the city. A lean haul, no ruin.'),
+      row('sack', 'Sack', lostName ? `Take its coffers and a lot more, and leave it burning. It forgets how to build ${lostName}.` : 'Take its coffers and leave it burning. It builds nothing, so there is no more to take.'), row('raze', 'Raze', `Take what you can carry and burn the rest. The city is gone until someone rebuilds it for ${num(g.rules.rebuildRazedCityCost ?? 800)} gold.`))], { width: 560, closeButton: false }), { dismiss: false });
   });
 }
 
@@ -186,8 +186,8 @@ export function openHistory() {
 export function openCities() {
   const list = myCities(); let m;
   const rows = list.map((c) => { const n = E.armiesAt(S.g, c.x, c.y).filter((a) => a.owner === S.me).length; const b = c.building ? E.ARMIES[c.building.type].name : '—';
-    return h('tr', { style: { cursor: 'pointer' }, onclick: () => { m.close(); openCity(c.id, { list: list.map((q) => q.id) }); } }, h('td', {}, c.name), h('td', {}, `+${c.income}`), h('td', {}, n), h('td', {}, b), h('td', {}, c.building ? `${c.building.progress} / ${E.buildTurns(S.g.rules, S.me, E.ARMIES[c.building.type])}` : '—')); });
-  m = openModal(frame([h('h2', { style: { fontSize: '28px', marginBottom: '10px' } }, 'Your cities'), h('table', { class: 't' }, h('thead', {}, h('tr', {}, ['City', 'Income', 'Armies', 'Building', 'Progress'].map((c) => h('th', {}, c)))), h('tbody', {}, rows)),
+    return h('tr', { style: { cursor: 'pointer' }, onclick: () => { m.close(); openCity(c.id, { list: list.map((q) => q.id) }); } }, h('td', {}, c.name), h('td', {}, `+${c.income}`), h('td', {}, n), h('td', {}, b), h('td', {}, c.building ? `${c.building.progress} / ${E.buildTurns(S.g.rules, S.me, E.ARMIES[c.building.type])}` : '—'), h('td', {}, h('button', { class: 'btn sm' }, 'Open'))); });
+  m = openModal(frame([h('h2', { style: { fontSize: '28px', marginBottom: '10px' } }, 'Your cities'), h('table', { class: 't cities' }, h('thead', {}, h('tr', {}, ['City', 'Income', 'Armies', 'Building', 'Progress', ''].map((c) => h('th', {}, c)))), h('tbody', {}, rows)),
     h('div', { class: 'foot' }, h('button', { class: 'btn', onclick: () => { m.close(); openDoctrines(); } }, 'Doctrines…'), h('button', { class: 'btn pri', onclick: () => m.close() }, 'Close'))], { width: 760, onClose: () => m.close() }));
 }
 

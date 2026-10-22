@@ -66,7 +66,7 @@ export function showWizard() {
   const draw = () => {
     const titleOf = ['', 'Choose your realm', 'Name your hero', 'Shape the world', 'Who stands against you?', 'How hard a war?'][st.step];
     const steps = h('div', { class: 'steps' }, names.flatMap((n, i) => { const k = i + 1; const cls = k === st.step ? 'on' : k < st.step ? 'done' : ''; const el = h('div', { class: 'st ' + cls }, h('span', { class: 'dm' }, h('span', {}, k < st.step ? '✓' : k)), n); return i < names.length - 1 ? [el, h('span', { class: 'ln' })] : [el]; }));
-    const head = h('div', { class: 'head' }, h('div', {}, h('div', { class: 'eyebrow' }, 'NEW GAME'), h('h2', {}, titleOf)), steps);
+    const head = h('div', { class: 'head' }, h('div', {}, h('div', { class: 'eyebrow' }, 'NEW GAME', h('span', { class: 'stepof' }, ` · Step ${st.step} of ${names.length}: ${names[st.step - 1]}`)), h('h2', {}, titleOf)), steps);
     let body;
     if (st.step === 1) {
       const idx = ids.indexOf(st.realm); const L = REALM_LOOK[colors[idx]]; const castle = S.assets.castle[colors[idx]];
