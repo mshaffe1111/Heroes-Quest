@@ -11,11 +11,9 @@ export function groupCanFly(armies) {
   return others.length > 0 && others.every(isFlyingArmy);
 }
 
-/** Move points that decide whether the group can step: heroes follow the others (they use the group's cost). */
+/** Move points that decide whether the group can step: the slowest member sets the pace, hero included (a hero who has spent his move holds the group back). */
 export function limitingMovePoints(armies) {
-  const others = armies.filter((a) => !isHero(a));
-  const pool = others.length ? others : armies;
-  return Math.min(...pool.map((a) => a.mp));
+  return Math.min(...armies.map((a) => a.mp));
 }
 
 /**

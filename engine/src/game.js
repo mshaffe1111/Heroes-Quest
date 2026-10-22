@@ -277,8 +277,7 @@ function attackCore(g, ids, x, y, { retreat = null, fallBack = null } = {}) {
       lostAttackers: battle.dead.attackers.length, lostDefenders: battle.dead.defenders.length,
       heroLostA: battle.dead.attackers.filter(isHero).length, heroLostD: battle.dead.defenders.filter(isHero).length, retreated: battle.retreated, fled: battle.fled });
     const qdone = questKills(g, owner, att, battle.dead.defenders); if (qdone) placeQuestAlly(g, owner, qdone);
-    if (battle.retreated) {     // the attacker called it off: survivors stay where they started, wounds and all
-      awardBattleXp(g, battle.survivors.attackers);
+    if (battle.retreated) {     // the attacker called it off: survivors stay where they started, wounds and all; nobody won, so no battle experience
       return { ok: true, battle, captureNeeded: false, attackersWon: false, retreated: true };
     }
     awardBattleXp(g, battle.winner === 'attacker' ? battle.survivors.attackers : battle.survivors.defenders);
@@ -455,7 +454,7 @@ export function takeStandard(g, heroId) {
 export function realmEconomy(g, realmId) {
   const tax = [...g.armies.values()].filter((a) => a.owner === realmId && a.x != null && isHero(a)).reduce((sum, h) => sum + heroTax(h), 0);
   const income = realmIncome([...g.cities.values()], realmId) + tax + taxFor(g.rules, realmId, [...g.cities.values()].filter((c) => c.owner === realmId && !c.razed).length);
-  const upkeep = realmUpkeep([...g.armies.values()].filter((a) => a.x != null), realmId, g.rules);   // armies in transit cost nothing
+  const upkeep = realmUpkeep([...g.armies.values()], realmId, g.rules);   // every army costs its upkeep every turn, armies on the road included
   return { income, upkeep, net: income - upkeep };
 }
 

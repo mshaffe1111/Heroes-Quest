@@ -64,13 +64,13 @@ test('vectoring: a built army travels build time + 2 turns and then appears in t
   g.turn = 3; E.beginTurn(g, 'A');
   assert.equal(E.armiesAt(g, 8, 8).length, 1);
 });
-test('armies in transit by vectoring cost no upkeep until they arrive', () => {
+test('armies in transit by vectoring cost their upkeep while on the road', () => {
   const g = world();
   E.addCity(g, { id: 'c1', x: 1, y: 1, owner: 'A', production: ['hcav'] });
   E.addCity(g, { id: 'c2', x: 8, y: 8, owner: 'A' });
   E.setProduction(g, 'c1', 'hcav'); E.setVector(g, 'c1', 'c2');
   for (let t = 1; t <= 3; t++) { g.turn = t; E.beginTurn(g, 'A'); }
-  assert.equal(E.realmEconomy(g, 'A').upkeep, 0);   // built on turn 3, still travelling; arrives turn 5
+  assert.ok(E.realmEconomy(g, 'A').upkeep > 0);   // built on turn 3, still travelling (arrives turn 5), and already paid for
 });
 
 // ---- moving ------------------------------------------------------------------------

@@ -48,9 +48,10 @@ test('one scout, orc, elf or dwarf lets the whole group pay the open-ground cost
   assert.equal(groupMoveCost([mk('hinf'), mk('scout')], hills, rules), rules.terrainCost.open);
   assert.equal(groupMoveCost([mk('hcav'), mk('elf')], woods, rules), rules.terrainCost.open);
 });
-test('a hero follows the group: he never limits its movement', () => {
+test('the slowest army sets the pace, hero included: a spent hero holds the group back', () => {
   const h = mk('hero'); h.mp = 1;
   const i = mk('hinf'); i.mp = 8;
-  assert.equal(limitingMovePoints([i, h]), 8);
-  assert.equal(limitingMovePoints([h]), 1);
+  assert.equal(limitingMovePoints([i, h]), 1);
+  h.mp = 14; assert.equal(limitingMovePoints([i, h]), 8);
+  assert.equal(limitingMovePoints([h]), 14);
 });
