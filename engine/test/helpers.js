@@ -1,0 +1,10 @@
+import { createArmy, makeRules } from '../src/index.js';
+export const rules = makeRules();
+export const mk = (type, extra = {}) => createArmy(type, extra.owner ?? 'A', extra);
+export const open = { terrain: 'open' };
+export const road = { terrain: 'open', road: true };
+export const woods = { terrain: 'woods' };
+export const hills = { terrain: 'hills' };
+export const city = { terrain: 'open', cityId: 'c1' };
+export const mountain = { terrain: 'mountain' };
+export const sea = { terrain: 'water' };

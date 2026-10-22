@@ -1,0 +1,13 @@
+{
+  "name": "heroes-quest-engine",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test \"test/*.test.js\"",
+    "sim": "node sim.mjs"
+  },
+  "dependencies": {
+    "simplex-noise": "^4.0.3"
+  }
+}
