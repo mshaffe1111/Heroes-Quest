@@ -4,12 +4,15 @@ import { generateMap } from '../../engine/src/mapgen/index.js';
 import { S, hooks } from './state.js';
 import { MapView, realmHex, medalURL } from './view.js';
 import { Painter, TP, CH } from './paint.js';
-import { h, $, crest, REALM_LOOK, toast, closeAllModals, sleep } from './ui.js';
+import { h, $, crest, REALM_LOOK, toast, closeAllModals, sleep, modalOpen, topModal } from './ui.js';
 import { newGame, enterGame, SIZES } from './game.js';
 import * as D from './dialogs.js';
 import { setScene } from './audio.js';
 
 const SHAPES = [['continent', 'One continent', 'One big land with every realm on it. The classic war.'], ['river_split', 'Great river', 'A wide river splits the land. Bridges are the places to fight.'], ['split', 'Split by sea', 'Two lands joined by narrow necks and bridges.'], ['islands', 'Big islands', 'Several large islands. Ships matter more.'], ['archipelago', 'Archipelago', 'Many islands. Ships matter and some islets can only be reached by boat.']];
+const TIPS = ['Only heroes can search ruins. Bring a few armies along: they help the hero face the guardian.', 'The slowest army in a group sets how far it moves.', 'Wounds heal only while an army rests in one of your cities.', 'A city holds at most eight armies. Send the rest where they are needed.', 'Taking more than half of all the cities wins the war.', 'Fortified armies wake by themselves when an enemy comes near.'];
+const SIG = { ivory: 'pike', gold: 'hcav', ember: 'dwarf', crimson: 'orc', verdant: 'elf', azure: 'grif', tidewatch: 'lcav', ashen: 'undead' };
+const PORTRAITS = ['paladin', 'knight', 'ranger', 'barbarian', 'elf_captain', 'dwarf_lord', 'battle_mage', 'sorceress', 'priestess', 'rogue', 'duelist', 'orc_warlord'];
 const HERO_NAMES = ['Aldric', 'Brenna', 'Cassian', 'Dara', 'Edric', 'Fenna', 'Gareth', 'Hilde', 'Ivor', 'Jora', 'Kell', 'Lyra'];
 const DIFFS = [['easy', 'Easy', 'The computer realms are slow, make mistakes and rarely press you.'], ['medium', 'Medium', 'A fair fight. The realms mostly look after themselves.'], ['hard', 'Hard', 'Sharper odds, bigger armies on the move, and a grudge against you.'], ['expert', 'Expert', 'They press on thin odds and hunt you first. Expect a siege by turn twenty.']];
 
@@ -17,6 +20,8 @@ let titleView = null, titleTimer = null;
 function root() { let t = $('#title'); if (!t) { t = h('div', { id: 'title', class: 'title' }); $('#app').prepend(t); } t.classList.remove('hidden'); return t; }
 function stopTitleMap() { if (titleView) { titleView.destroy(); titleView = null; } if (titleTimer) cancelAnimationFrame(titleTimer); titleTimer = null; }
 hooks.stopTitle = stopTitleMap;
+// Esc closes the top window outside a game too (the game's own key handler only runs in play)
+document.addEventListener('keydown', (e) => { if (e.key !== 'Escape' || !modalOpen()) return; const game = document.getElementById('game'); if (game && !game.classList.contains('hidden')) return; const t = topModal(); if (t.dismiss !== false) t.close(); else t.onEsc?.(); });
 
 async function backdrop(host) {
   const canvas = h('canvas'); host.prepend(canvas);
@@ -32,11 +37,17 @@ export async function showTitle() {
   setScene(titleShown ? 'menu' : 'title'); titleShown = true;
   stopTitleMap(); closeAllModals(); const t = root(); t.replaceChildren();
   const saves = E.listSaves(D.saveStore).filter((s) => !s.empty); const newest = saves.sort((a, b) => b.savedAt - a.savedAt)[0];
-  t.append(h('div', { class: 'vig' }), h('div', { class: 'c' }, h('h1', {}, 'Heroes Quest'), h('div', { class: 'tag' }, 'A war for the crown of the broken land'),
-    h('div', { class: 'btns' }, newest ? h('button', { class: 'btn pri big', onclick: () => hooks.loadSlot(newest.slot) }, 'Continue') : null,
-      h('button', { class: 'btn big' + (newest ? '' : ' pri'), onclick: () => showWizard() }, 'New game'), saves.length ? h('button', { class: 'btn big', onclick: () => D.openSaveLoad('load') }, 'Load game') : null, h('button', { class: 'btn big', onclick: () => D.openHelp() }, 'How to play'))),
-    h('div', { class: 'small' }, 'Early test build · your saves live in this browser · ', h('a', { href: 'https://github.com/mshaffe1111/Heroes-Quest', style: { color: '#9fc2e6' } }, 'the code is on GitHub')));
-  backdrop(t).catch((e) => console.warn('title map failed', e));
+  const sum = newest?.summary; const ago = newest ? agoText(newest.savedAt) : '';
+  const nav = h('nav', { class: 'tmenu' },
+    newest ? h('button', { class: 'btn pri big tcont', onclick: () => hooks.loadSlot(newest.slot) }, h('span', {}, 'Continue'), h('small', {}, [sum?.turn ? `Turn ${sum.turn}` : '', sum?.realmName ?? '', ago].filter(Boolean).join(' · '))) : null,
+    h('button', { class: 'btn big' + (newest ? '' : ' pri'), onclick: () => showWizard() }, 'New game'),
+    h('button', { class: 'btn big', onclick: () => D.openSaveLoad('load') }, 'Load a game'),
+    h('div', { class: 'trow' }, h('button', { class: 'btn', onclick: () => D.openOptions() }, 'Options'), h('button', { class: 'btn', onclick: () => D.openHelp() }, 'How to play'), h('button', { class: 'btn', onclick: () => D.openCredits() }, 'Credits')));
+  t.append(h('img', { class: 'tbg', src: 'play/assets/scenes/title.webp', alt: '' }), h('div', { class: 'tshade' }),
+    h('div', { class: 'tleft' }, h('h1', {}, 'Heroes Quest'), h('div', { class: 'tag' }, 'A war for the crown of the broken land'), nav),
+    h('div', { class: 'small' }, 'Early test build · your saves live in this browser · Created by Matt Shaffer · ', h('a', { href: 'https://github.com/mshaffe1111/Heroes-Quest' }, 'the code is on GitHub')));
+}
+function agoText(t) { if (!t) return ''; const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'saved just now' : m < 60 ? `saved ${m} minute${m === 1 ? '' : 's'} ago` : m < 1440 ? `saved ${Math.round(m / 60)} hour${Math.round(m / 60) === 1 ? '' : 's'} ago` : `saved ${new Date(t).toLocaleDateString()}`;
 }
 
 export function showWizard() {
@@ -53,18 +64,22 @@ export function showWizard() {
     let body;
     if (st.step === 1) {
       const idx = ids.indexOf(st.realm); const L = REALM_LOOK[colors[idx]]; const castle = S.assets.castle[colors[idx]];
-      const banners = h('div', { class: 'banners' }, ids.map((id, i) => { const l = REALM_LOOK[colors[i]]; const name = E.REALMS[i].name.split(' ');
-        return h('button', { class: 'banner' + (id === st.realm ? ' sel' : ''), style: { background: l.fill, color: l.text }, onclick: () => { st.realm = id; draw(); } }, crest(colors[i], 44), h('span', {}, name[0], h('br'), name.slice(1).join(' '))); }));
-      const card = h('div', { class: 'frame', style: { maxWidth: '1100px', margin: '0 auto', width: '100%' } }, ...['tl', 'tr', 'bl', 'br'].map((p) => h('i', { class: 'cn ' + p })),
-        h('div', { class: 'realmcard' }, h('img', { src: castle?.src ?? '' }), h('div', {}, h('div', { class: 'eyebrow' }, 'YOU WILL RULE'), h('h3', {}, E.REALMS[idx].name), h('div', { style: { font: '700 17px var(--display)', color: '#f3dc9a', margin: '4px 0 10px' } }, L.epithet), h('p', { class: 'sub' }, L.blurb)),
-          h('div', { class: 'begin' }, h('div', { class: 'eyebrow', style: { marginBottom: '4px' } }, 'YOU BEGIN WITH'), h('div', {}, '◆ One capital castle'), h('div', {}, '◆ Three armies'), h('div', {}, '◆ One hero, named next'), h('div', {}, `◆ ${E.makeRules?.().startGold ?? 1000} gold`))));
-      body = h('div', {}, banners, card);
+      const cards = h('div', { class: 'rcards' }, ids.map((id, i) => { const l = REALM_LOOK[colors[i]]; const sig = E.ARMIES[SIG[id]];
+        return h('button', { class: 'rcard' + (id === st.realm ? ' sel' : ''), onclick: () => { st.realm = id; draw(); } }, crest(colors[i], 54), h('b', {}, E.REALMS[i].name), h('span', {}, l.epithet), h('em', {}, 'Signature army'), h('img', { class: 'sig', src: medalURL(S.assets, SIG[id], realmHex({ color: colors[i] }), 96), alt: '' }), h('small', {}, sig?.name ?? '')); }));
+      const sig = E.ARMIES[SIG[st.realm]];
+      const card = h('div', { class: 'frame rside' }, h('div', { class: 'eyebrow' }, 'You will rule'), h('div', { class: 'rhead' }, crest(colors[idx], 46), h('h3', {}, E.REALMS[idx].name)),
+        h('div', { class: 'ep' }, L.epithet), h('p', { class: 'sub' }, L.blurb), h('div', { class: 'sec' }, 'You begin with'),
+        h('div', { class: 'begin2' }, h('div', {}, '◆ ', h('b', {}, 'Your capital castle')), h('div', {}, '◆ ', h('b', {}, 'Your hero'), ', named next'), (E.SIGNATURE ? h('div', {}, '◆ ', h('b', {}, `Two ${sig?.name ?? 'armies'}`), ', the realm’s signature army') : h('div', {}, '◆ ', h('b', {}, 'Three armies'), ` (soon: two ${sig?.name ?? 'signature armies'})`)), h('div', {}, `◆ ${E.makeRules?.().startGold ?? 1000} gold`)),
+        h('img', { class: 'rcastle', src: castle?.src ?? '', alt: '' }));
+      body = h('div', { class: 'realmstep' }, cards, card);
     } else if (st.step === 2) {
       const ph = HERO_NAMES[(st.seed + ids.indexOf(st.realm)) % HERO_NAMES.length];
       const inp = h('input', { type: 'text', maxlength: 20, placeholder: ph, value: st.heroName, oninput: (e) => { st.heroName = e.target.value; } });
-      body = h('div', { class: 'frame', style: { maxWidth: '760px', margin: '30px auto', width: '100%' } }, ...['tl', 'tr', 'bl', 'br'].map((p) => h('i', { class: 'cn ' + p })),
-        h('div', { style: { display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'wrap' } }, h('img', { src: medalURL(S.assets, 'hero', realmHex({ color: colors[ids.indexOf(st.realm)] }), 160), style: { width: '120px' } }),
-          h('div', { style: { flex: 1, minWidth: '240px' } }, h('div', { class: 'eyebrow' }, 'YOUR HERO'), h('p', { class: 'sub', style: { margin: '6px 0 14px' } }, 'Your first hero leads your first army. Heroes grow stronger in every battle, can carry the realm’s Standard, and lead the armies around them. Leave this empty and one will be chosen for you.'), inp)));
+      st.portrait ??= PORTRAITS[0];
+      const pick = h('div', { class: 'portraits' }, PORTRAITS.map((pid) => h('button', { class: 'pt' + (st.portrait === pid ? ' sel' : ''), 'aria-label': pid.replace('_', ' '), onclick: () => { st.portrait = pid; draw(); } }, h('img', { src: `play/assets/heroes/${pid}.webp`, alt: '' }))));
+      body = h('div', { class: 'herostep' }, h('div', { class: 'frame hleft' }, h('img', { class: 'hbig', src: `play/assets/heroes/${st.portrait}.webp`, alt: '' }), h('div', { class: 'hname' }, st.heroName || ph), h('p', { class: 'sub' }, 'Your first hero leads your first army. Heroes grow stronger with every battle, can carry the realm’s Standard and lead the armies around them.')),
+        h('div', { class: 'hright' }, h('div', { class: 'frame' }, h('div', { class: 'sec', style: { marginTop: 0 } }, 'Choose a face'), pick), h('div', { class: 'frame' }, h('div', { class: 'sec', style: { marginTop: 0 } }, 'Your hero’s name'), h('label', { class: 'sub', for: 'heroname', style: { display: 'block', marginBottom: '8px' } }, 'Leave it empty and one will be chosen for you.'), inp)));
+      inp.id = 'heroname'; inp.addEventListener('input', () => { const n = body.querySelector('.hname'); if (n) n.textContent = inp.value || ph; });
     } else if (st.step === 3) {
       const cv = h('canvas', { class: 'prev', width: 300, height: 200 });
       const shapeBtns = h('div', { class: 'opts', style: { gridTemplateColumns: 'repeat(auto-fit,minmax(130px,1fr))' } }, SHAPES.map(([k, n]) => h('button', { class: 'opt' + (st.shape === k ? ' on' : ''), onclick: () => { st.shape = k; draw(); } }, h('b', {}, n))));
@@ -110,8 +125,8 @@ export function showWizard() {
     requestAnimationFrame(step);
   }
   async function begin() {
-    const ov = h('div', { class: 'load' }, h('div', {}, 'Painting the world…'), h('div', { class: 'lb' }, h('i', { style: { width: '35%', transition: 'width 2s' } }))); $('#app').append(ov); await sleep(60);
-    try { const g = newGame({ realm: st.realm, heroName: st.heroName || HERO_NAMES[(st.seed + ids.indexOf(st.realm)) % HERO_NAMES.length], shape: st.shape, cities: st.cities, seed: st.seed, difficulty: st.difficulty, fog: st.fog, classic: st.classic });
+    const ov = h('div', { class: 'load paint' }, h('div', { class: 'lt' }, 'Painting the world'), h('div', { class: 'ls' }, `${SHAPES.find((x) => x[0] === st.shape)?.[1] ?? ''} · map ${st.seed} · ${st.cities} cities`), h('div', { class: 'lb' }, h('i', { style: { width: '35%', transition: 'width 2s' } })), h('div', { class: 'tip' }, TIPS[st.seed % TIPS.length])); $('#app').append(ov); await sleep(60);
+    try { const g = newGame({ realm: st.realm, heroName: st.heroName || HERO_NAMES[(st.seed + ids.indexOf(st.realm)) % HERO_NAMES.length], shape: st.shape, cities: st.cities, seed: st.seed, difficulty: st.difficulty, fog: st.fog, classic: st.classic, portrait: st.portrait });
       ov.querySelector('i').style.width = '90%'; await sleep(30); stopTitleMap(); hooks.ready = () => ov.remove(); await enterGame(g); } catch (e) { console.error(e); toast('The world could not be made: ' + e.message, 'bad'); } ov.remove(); hooks.ready = null;
   }
   draw();

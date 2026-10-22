@@ -27,10 +27,12 @@ export const REALM_LOOK = {
   cyan: { fill: '#34bcd8', text: '#062a33', ink: '#0a3a44', epithet: 'Sea-wardens of the grey reaches', blurb: 'The Riders learned the grey reaches before anyone drew a map of them. Their galleys come out of the mist and are gone before the bells ring.', charge: '<path d="M24 14v26M24 17c8 4 11 12 11 22H24M24 23c-5 3-8 8-8 16h8"/>' },
   black: { fill: '#46465c', text: '#ffffff', ink: '#d4d4e0', epithet: 'The grey host that never rests', blurb: 'The Legion marches in good order and in all weathers. It does not hurry, and it does not stop.', charge: '<path d="M24 13v22M18 35h12M24 35v7M20 21l4 5"/>' },
 };
+const SHIELD_OF = { white: 'ivory', gold: 'gold', orange: 'ember', red: 'crimson', green: 'verdant', blue: 'azure', cyan: 'tidewatch', black: 'ashen' };
+/** A realm's heraldic shield (Stone & Gilt look); colours without a realm get the Unsworn shield. */
 export function crest(color, size = 24) {
-  const L = REALM_LOOK[color] ?? REALM_LOOK.green; const hgt = Math.round(size * 56 / 48);
-  return h('span', { html: `<svg width="${size}" height="${hgt}" viewBox="0 0 48 56" style="display:block"><path d="M4 4h40v26c0 12-10 20-20 24C14 50 4 42 4 30z" fill="${L.fill}" stroke="#d8b25a" stroke-width="2.5" stroke-linejoin="round"/><g fill="none" stroke="${L.ink}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${L.charge.replace('<circle', `<circle fill="${L.ink}"`)}</g></svg>`, style: { display: 'inline-flex' } });
+  return h('img', { class: 'crest', src: `play/assets/ui/shields/${SHIELD_OF[color] ?? 'unsworn'}.svg`, alt: '', style: { width: size + 'px', height: Math.round(size * 1.12) + 'px', display: 'block', flex: 'none' } });
 }
+
 
 // ---- dialogs ---------------------------------------------------------------------------------------------------------------
 const modalsEl = () => document.getElementById('modals');

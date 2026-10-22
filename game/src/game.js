@@ -20,7 +20,7 @@ export function newGame(o) {
   g.realms.get(me).human = true;
   for (const id of ids) if (id !== me) E.setDifficulty(g, id, o.difficulty ?? 'medium');
   E.assignSkills(g);
-  const hero = [...g.armies.values()].find((a) => a.owner === me && a.type === 'hero'); if (hero && o.heroName) hero.name = o.heroName.slice(0, 20);
+  const hero = [...g.armies.values()].find((a) => a.owner === me && a.type === 'hero'); if (hero && o.heroName) hero.name = o.heroName.slice(0, 20); if (hero && o.portrait) hero.portrait = o.portrait;
   g.meta = { difficulty: o.difficulty ?? 'medium', shape: o.shape, seed: o.seed, cities: o.cities, startedAt: Date.now() };
   return g;
 }

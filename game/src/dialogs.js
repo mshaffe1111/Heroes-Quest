@@ -181,7 +181,7 @@ export function openHelp() {
 }
 export const DEFAULT_OPTS = { odds: true, autoNext: true, sound: true, music: true, replay: true, follow: true, moveSpeed: 60, musicVol: 70, fxVol: 85, quietHidden: true, confirmEnd: true, enemyMode: 'watch' };
 export function openOptions() {
-  let m; const save = () => { try { localStorage.setItem('hq-opts', JSON.stringify(S.opts)); } catch { /* private mode */ } syncMusic(); hooks.refresh(); };
+  let m; const save = () => { try { localStorage.setItem('hq-opts', JSON.stringify(S.opts)); } catch { /* private mode */ } syncMusic(); hooks.refresh?.(); };
   const sw = (key, extra) => { const b = h('button', { class: 'sw' + (S.opts[key] !== false ? ' on' : ''), role: 'switch', 'aria-checked': String(S.opts[key] !== false), onclick: () => { S.opts[key] = S.opts[key] === false ? true : !S.opts[key]; b.classList.toggle('on', S.opts[key] !== false); b.setAttribute('aria-checked', String(S.opts[key] !== false)); extra?.(); save(); } }); return b; };
   const row = (title, text, ...ctl) => h('div', { class: 'toggle' }, h('div', {}, h('b', {}, title), h('span', {}, text)), ...ctl);
   const slider = (key, label, onChange) => { const out = h('output', {}, String(S.opts[key] ?? 0)); const inp = h('input', { type: 'range', min: 0, max: 100, step: 1, value: S.opts[key] ?? 0, 'aria-label': label, oninput: () => { S.opts[key] = +inp.value; out.textContent = inp.value; onChange?.(); }, onchange: save });
@@ -241,4 +241,15 @@ export function openEnd(status) {
 export async function confirmEndTurn(idle, idleCities = 0) {
   const parts = []; if (idle) parts.push(`${idle} ${idle === 1 ? 'army has' : 'armies have'} not been given orders. Use Done or Fortify to rest them.`); if (idleCities) parts.push(`${idleCities} ${idleCities === 1 ? 'city is' : 'cities are'} not building anything.`);
   return confirmBox({ title: 'End your turn?', text: parts.join(' ') + ' End the turn anyway?', ok: 'End turn', cancel: 'Keep playing' });
+}
+
+/** Credits: who made the game, and the sounds that must be credited (CC BY). */
+export function openCredits() {
+  const line = (a, b) => h('div', { class: 'cr' }, h('b', {}, a), h('span', {}, b));
+  let m; m = openModal(frame([h('div', { class: 'eyebrow' }, 'Heroes Quest'), h('h2', {}, 'Credits'),
+    h('div', { class: 'sec' }, 'The game'), line('Created and made by', 'Matt Shaffer'), line('Painted scenes', 'made for Heroes Quest'),
+    h('div', { class: 'sec' }, 'Music'), h('p', { class: 'sub' }, 'Original music for Heroes Quest, played with the VSCO 2 Community Edition (CC0) and Sonatina Symphonic Orchestra (Creative Commons Sampling Plus 1.0) sample libraries.'),
+    h('div', { class: 'sec' }, 'Sound effects'), h('p', { class: 'sub' }, 'Kenney (kenney.nl), StarNinjas, Eldritch Grim and StephenSaldanha, all CC0.'),
+    line('Horse gallop', 'AntumDeluge / Alan McKinney (freesound 403026), CC BY 3.0'), line('Archers shooting', "copyc4t (Paolo D'Emilio), OpenGameArt, CC BY 3.0"),
+    h('div', { class: 'foot' }, h('button', { class: 'btn pri', onclick: () => m.close() }, 'Close'))], { width: 640, onClose: () => m.close() }));
 }
