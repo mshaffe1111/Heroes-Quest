@@ -129,7 +129,7 @@ async function offers() {
 }
 /** Where the player's attention belongs right now: the first army that wants orders, else any army of theirs, else their capital. */
 function homeSpot() {
-  const g = S.g; const idle = E.nextIdle(g, S.me, null); if (idle) return { x: idle.x, y: idle.y, idle: true };
+  const g = S.g; const idle = nextWaiting(null); if (idle) return { x: idle.x, y: idle.y, idle: true };
   const mine = [...g.armies.values()].find((a) => a.owner === S.me && a.x != null); if (mine) return { x: mine.x, y: mine.y };
   const c = myCities()[0] ?? [...g.cities.values()].find((c) => c.owner === S.me); return c ? { x: c.x, y: c.y } : null;
 }
@@ -150,7 +150,7 @@ async function continueGoals() {
 
 async function endTurnClick() {
   if (S.busy || !S.g) return;
-  const idle = E.idleArmies(S.g, S.me).length; const idleCities = myCities().filter((c) => !c.building).length;
+  const idle = waiting().length; const idleCities = myCities().filter((c) => !c.building).length;      // an army marching on a route has its orders
   if ((idle || idleCities) && S.opts.confirmEnd !== false) { if (!(await D.confirmEndTurn(idle, idleCities))) return; }
   await endTurn();
 }
@@ -199,6 +199,9 @@ async function concede() {
 // ======================================================================================================================
 // selection and orders
 const ownAt = (x, y) => E.orderedArmiesAt(S.g, x, y, S.me);
+/** Armies that really wait for orders: idle in the engine's sense and not marching on a route the player already gave. */
+const waiting = () => E.idleArmies(S.g, S.me).filter((a) => !a.goal);
+const nextWaiting = (afterId) => { const l = waiting(); if (!l.length) return null; const n = afterId ? Number(String(afterId).slice(1)) : -1; return l.find((a) => Number(a.id.slice(1)) > n) ?? l[0]; };
 const movable = (a) => a.mp > 0 && !a.done && !a.fortified;
 function selectStack(x, y, ids = null) {
   const arm = ownAt(x, y); if (!arm.length) { S.sel = null; } else {
@@ -211,7 +214,7 @@ function selectStack(x, y, ids = null) {
 const selArmies = () => (S.sel ? S.sel.ids.map((id) => S.g.armies.get(id)).filter(Boolean) : []);
 function deselect() { S.sel = null; S.path = null; S.view.sel = null; S.view.path = null; refresh(); }
 function nextArmy() {
-  if (S.busy) return; const idle = E.idleArmies(S.g, S.me);
+  if (S.busy) return; const idle = waiting();
   if (!idle.length) { toast('Every army has its orders. Time to end the turn.'); return; }
   const num = (a) => Number(a.id.slice(1)); const sel = S.sel;
   const elsewhere = sel ? idle.filter((a) => a.x !== sel.x || a.y !== sel.y) : idle;      // FIX: skip the square we are already on
@@ -227,10 +230,10 @@ function order(kind) {
   S.view.touch();
   if (kind === 'wake') { selectStack(S.sel.x, S.sel.y, ids); return; }
   // an order rests only the selected armies (at most 8): carry straight on with whatever is still idle, on this square first
-  const rest = E.idleArmies(S.g, S.me).filter((a) => !ids.includes(a.id));
+  const rest = waiting().filter((a) => !ids.includes(a.id));
   const here = rest.filter((a) => a.x === S.sel.x && a.y === S.sel.y);
   if (here.length) { selectStack(S.sel.x, S.sel.y); toast(`${here.length} more ${here.length === 1 ? 'army' : 'armies'} here still ${here.length === 1 ? 'has' : 'have'} no orders.`); return; }
-  if (S.opts.autoNext && rest.length) { const a = E.nextIdle(S.g, S.me, ids[0]); if (a) { selectStack(a.x, a.y); S.view.centerOn(a.x, a.y); return; } }
+  if (S.opts.autoNext && rest.length) { const a = nextWaiting(ids[0]); if (a) { selectStack(a.x, a.y); S.view.centerOn(a.x, a.y); return; } }
   selectStack(S.sel.x, S.sel.y, ids);
   if (!rest.length) toast('Every army has its orders. End the turn when you are ready.');
 }
@@ -262,7 +265,7 @@ function preview(x, y) {
   if (x === S.sel.x && y === S.sel.y) return;
   const search = E.routeSearch(g, ids); const r = E.routeTo(search, { x, y });
   if (!r) { toast('Your armies cannot get there.', 'bad'); S.path = null; S.view.path = null; refresh(); return; }
-  const last = r.steps[r.steps.length - 1]; const full = Math.max(1, E.limitingMovePoints(armies.map((a) => ({ ...a, mp: Math.max(a.mp, 1) })))); const mp = E.limitingMovePoints(armies);
+  const last = r.steps[r.steps.length - 1]; const full = Math.max(1, Math.min(...armies.map((a) => E.moveOf(a, g.rules)))); const mp = E.limitingMovePoints(armies);
   const extra = r.cost <= mp ? 0 : Math.ceil((r.cost - mp) / full); let label = extra === 0 ? 'This turn' : extra === 1 ? 'Next turn' : `In ${extra} turns`; let odds = null;
   if (last.action === 'attack') {
     odds = oddsFor(armies, x, y); label = odds && S.opts.odds !== false ? `Attack · ${Math.round(odds.winChance * 100)}%` : 'Attack';
@@ -308,10 +311,10 @@ async function executeInner(p) { const ids = S.sel.ids.slice(); S.busy = true; S
 }
 function afterMove(ids) {
   const a0 = ids.map((id) => S.g.armies.get(id)).find(Boolean); S.view.touch();
-  if (!a0) { deselect(); if (S.opts.autoNext) { const n = E.nextIdle(S.g, S.me, null); if (n) { selectStack(n.x, n.y); S.view.centerOn(n.x, n.y); } else selectNextOnStart(); } return; }      // FIX: the attackers all died: still hand the player the next army (or the capital)
+  if (!a0) { deselect(); if (S.opts.autoNext) { const n = nextWaiting(null); if (n) { selectStack(n.x, n.y); S.view.centerOn(n.x, n.y); } else selectNextOnStart(); } return; }      // FIX: the attackers all died: still hand the player the next army (or the capital)
   S.sel = { x: a0.x, y: a0.y, ids: ids.filter((id) => S.g.armies.has(id)) }; S.view.sel = { x: a0.x, y: a0.y };
-  const left = selArmies().some(movable);
-  if (!left && S.opts.autoNext) { const a = E.nextIdle(S.g, S.me, null); if (a) { selectStack(a.x, a.y); S.view.centerOn(a.x, a.y); return; } }
+  const left = selArmies().some((a) => movable(a) && !a.goal);
+  if (!left && S.opts.autoNext) { const a = nextWaiting(null); if (a) { selectStack(a.x, a.y); S.view.centerOn(a.x, a.y); return; } }
   refresh();
 }
 async function doAttack(ids, x, y) {
@@ -364,7 +367,7 @@ function renderPanel(eco, realm) {
   $('#gmoveval').textContent = arm.length ? String(E.limitingMovePoints(arm)) : '–';
 }
 function renderEvents() {
-  const el = $('#events'); if (!el) return; const notes = S.notes ?? []; const idle = S.g ? E.idleArmies(S.g, S.me).length : 0;
+  const el = $('#events'); if (!el) return; const notes = S.notes ?? []; const idle = S.g ? waiting().length : 0;
   const tone = (t) => (/cannot|out of gold|lost|fell|attacked/.test(t) ? 'bad' : /finished|arrived|healed|took/.test(t) ? 'good' : '');
   el.replaceChildren(h('div', { class: 'eh' }, h('img', { src: 'play/assets/ui/icons/bell.svg', alt: '' }), h('span', {}, 'This turn')),
     ...(notes.length ? notes.slice(0, 5).map((t) => h('div', { class: 'ev ' + tone(t) }, t)) : [h('div', { class: 'ev dim' }, 'Nothing new this turn.')]),
@@ -398,7 +401,7 @@ function renderCards() {
 }
 function pipsRow(a) { const mx = E.maxPips(a, S.g.rules), cur = E.pipsOf(a, S.g.rules); return h('div', { class: 'pips' }, Array.from({ length: mx }, (_, i) => h('i', { class: i < cur ? '' : 'w' }))); }
 function renderEnd() {
-  const idle = S.g ? E.idleArmies(S.g, S.me).length : 0; const b = $('#endbtn'); b.disabled = S.busy;
+  const idle = S.g ? waiting().length : 0; const b = $('#endbtn'); b.disabled = S.busy;
   $('#msg').textContent = S.path ? `${S.path.attack ? '' : 'March: '}${S.path.label}. Click the square again to confirm.` : S.sel ? `Selected: ${selArmies().length} ${selArmies().length === 1 ? 'army' : 'armies'}${E.cityAt(S.g, S.sel.x, S.sel.y) ? ' in ' + E.cityAt(S.g, S.sel.x, S.sel.y).name : ''}.` : idle ? `${idle} ${idle === 1 ? 'army is' : 'armies are'} waiting for orders.` : 'Every army has its orders.';
 }
 

@@ -94,7 +94,7 @@ export function showBattle(result, { attacker, defender, place, tile, theirs = f
         const ta = typeName(fight.attacker.type), td = typeName(fight.defender.type);
         const hero = (x) => x.type === 'hero' ? 'Hero' : null;
         duel.replaceChildren(h('div', { class: 'big' }, h('div', {}, h('div', { class: 'sbig' }, fight.attacker.strength), h('div', {}, ta)), h('div', { class: 'vs' }, 'vs'), h('div', {}, h('div', { class: 'sbig' }, fight.defender.strength), h('div', {}, td))),
-          fight.stackBonus.attacker || fight.stackBonus.defender ? h('div', { style: { font: '500 12px Inter', color: '#9fb4cc' } }, `Stack bonus: you +${fight.stackBonus.attacker} · they +${fight.stackBonus.defender}`) : null);
+          fight.stackBonus.attacker || fight.stackBonus.defender ? h('div', { style: { font: '500 12px Inter', color: '#9fb4cc' } }, `Stack bonus: you +${theirs ? fight.stackBonus.defender : fight.stackBonus.attacker} · they +${theirs ? fight.stackBonus.attacker : fight.stackBonus.defender}`) : null);
         if (!skip) await sleep(650);
         const loser = fight.winner === 'attacker' ? ed : ea; loser?.classList.add('dead'); sfx('clash', fight.attacker.strength + fight.defender.strength > 10); setTimeout(() => sfx('fall'), 180);
         log.append(h('div', {}, h('b', {}, `Duel ${n}: `), `${fight.winner === 'attacker' ? ta : td} beats ${fight.winner === 'attacker' ? td : ta} (${fight.attacker.strength} v ${fight.defender.strength}).`)); log.scrollTop = 1e6;
@@ -149,15 +149,15 @@ export function openDoctrines() {
 
 // ===== reports =================================================================================================================
 export function openRealms() {
-  const g = S.g; let m; const rows = E.standings(g, null);
+  const g = S.g; let m; const rows = E.standings(g, null); if (E.fogOn(g)) rows.sort((a, b) => (a.id === S.me ? -1 : b.id === S.me ? 1 : realmOf(a.id).name.localeCompare(realmOf(b.id).name)));      // fog: the order would rank the hidden realms
   const table = h('table', { class: 't' }, h('thead', {}, h('tr', {}, ['Realm', 'Cities', 'Armies', 'Gold', 'Taken', 'Lost', 'Battles won'].map((c) => h('th', {}, c)))),
     h('tbody', {}, rows.map((r) => { const realm = realmOf(r.id); const armies = [...g.armies.values()].filter((a) => a.owner === r.id && a.x != null).length; const fogHidden = E.fogOn(g) && r.id !== S.me;
       return h('tr', { style: { opacity: r.citiesNow || armies ? 1 : 0.5 } }, h('td', {}, h('span', { class: 'dot', style: { background: realmHex(realm) ?? '#999' } }), realm.name + (r.id === S.me ? ' (you)' : '')), h('td', {}, fogHidden ? '?' : r.citiesNow), h('td', {}, fogHidden ? '?' : armies),
-        h('td', {}, r.id === S.me ? num(realm.gold) : '—'), h('td', {}, r.citiesTaken), h('td', {}, r.citiesLost), h('td', {}, r.battlesWon)); })));
+        h('td', {}, r.id === S.me ? num(realm.gold) : '—'), h('td', {}, fogHidden ? '?' : r.citiesTaken), h('td', {}, fogHidden ? '?' : r.citiesLost), h('td', {}, fogHidden ? '?' : r.battlesWon)); })));
   m = openModal(frame([h('div', { class: 'eyebrow' }, `Turn ${g.turn}`), h('h2', { style: { fontSize: '28px', marginBottom: '14px' } }, 'The realms'), table, h('div', { class: 'foot' }, h('button', { class: 'btn pri', onclick: () => m.close() }, 'Close'))], { width: 820, onClose: () => m.close() }));
 }
 export function openHistory() {
-  const g = S.g; let m; const list = [...(g.stats?.battles ?? [])].reverse().slice(0, 60);
+  const g = S.g; let m; const list = [...(g.stats?.battles ?? [])].filter((b) => !E.fogOn(g) || b.attacker === S.me || b.defender === S.me).reverse().slice(0, 60);      // fog: only the battles your own armies fought
   const body = list.length ? list.map((b) => h('div', { style: { padding: '8px 0', borderBottom: '1px solid #16243a', font: '600 13px Inter' } }, h('b', { style: { color: '#f3dc9a' } }, `Turn ${b.turn} `), `${b.place ? 'at ' + b.place : 'in the field'}: ${realmName(b.attacker)} attacked ${realmName(b.defender)} (${b.attackers} v ${b.defenders}). `, h('span', { style: { color: b.winner === 'attacker' ? '#7fe0a4' : '#ff9a8a' } }, b.winner === 'attacker' ? 'The attackers won.' : b.winner === 'defender' ? 'The defenders held.' : 'Called off.'))) : [h('p', { class: 'sub' }, 'No battles yet.')];
   m = openModal(frame([h('h2', { style: { fontSize: '28px', marginBottom: '10px' } }, 'Battle history'), h('div', { style: { maxHeight: '55vh', overflow: 'auto' } }, body), h('div', { class: 'foot' }, h('button', { class: 'btn pri', onclick: () => m.close() }, 'Close'))], { width: 760, onClose: () => m.close() }));
 }
@@ -207,18 +207,21 @@ export function openOptions() {
 // ===== saves ===================================================================================================================
 const store = () => { try { const t = '__t'; localStorage.setItem(t, '1'); localStorage.removeItem(t); return localStorage; } catch { return E.memoryStore(); } };
 export const saveStore = store();
-export function doAutosave() { try { E.autosave(saveStore, S.g, S.meta); } catch (e) { console.warn('autosave failed', e); } }
+export const persistent = (() => { try { return saveStore === localStorage; } catch { return false; } })();
+let warned = false;
+export function doAutosave() { let r; try { r = E.autosave(saveStore, S.g, S.meta); } catch (e) { r = { ok: false }; console.warn('autosave failed', e); }
+  if (!r?.ok && !warned) { warned = true; toast('The autosave failed: this browser has no room left for saves. Save to a file from Game > Save.', 'bad'); } }
 export function openSaveLoad(mode = 'save') {
   let m; const draw = () => {
     const list = E.listSaves(saveStore); const bySlot = new Map(list.map((s) => [s.slot, s]));
     const slots = (mode === 'save' ? E.MANUAL_SLOTS : E.ALL_SLOTS).map((slot) => { const rec = bySlot.get(slot); const s = rec && !rec.empty ? rec : null; const label = slot.startsWith('auto') ? `Autosave ${slot.slice(4)}` : `Slot ${slot.slice(4)}`;
       return h('div', { class: 'bcard', style: { minHeight: 0 } }, h('div', { class: 'n' }, label), s ? h('div', { class: 'm', style: { color: '#c7d6e8' } }, `${s.summary?.realmName ?? ''} · Turn ${s.summary?.turn ?? '?'} · ${s.summary?.cities ?? '?'} cities`) : h('div', { class: 'd' }, 'Empty'),
         s ? h('div', { class: 'd' }, new Date(s.savedAt).toLocaleString()) : null,
-        h('div', { class: 'pr' }, h('span', {}), h('span', { style: { display: 'flex', gap: '6px' } }, mode === 'save' ? h('button', { class: 'btn sm', onclick: () => { const r = E.saveToSlot(saveStore, slot, `${realmName(S.me)}`, S.g, S.meta); if (r.ok) { toast('Saved.', 'good'); draw2(); } else toast('Could not save: ' + r.reason, 'bad'); } }, 'Save here') : (s ? h('button', { class: 'btn sm', onclick: () => { m.close(); hooks.loadSlot(slot); } }, 'Load') : null),
+        h('div', { class: 'pr' }, h('span', {}), h('span', { style: { display: 'flex', gap: '6px' } }, mode === 'save' ? h('button', { class: 'btn sm', onclick: () => { if (S.busy) { toast('The other realms are still playing. Wait a moment.'); return; } const r = E.saveToSlot(saveStore, slot, `${realmName(S.me)}`, S.g, S.meta); if (r.ok) { toast('Saved.', 'good'); draw2(); } else toast(r.reason === 'storage-full' ? 'Could not save: this browser has no room left. Delete a slot or save to a file.' : 'Could not save: ' + r.reason.replaceAll('-', ' '), 'bad'); } }, 'Save here') : (s ? h('button', { class: 'btn sm', onclick: () => { m.close(); hooks.loadSlot(slot); } }, 'Load') : null),
           s && !slot.startsWith('auto') ? h('button', { class: 'btn sm danger', onclick: () => { E.deleteSlot(saveStore, slot); draw2(); } }, 'Delete') : null))); });
     return frame([h('h2', { style: { fontSize: '28px', marginBottom: '12px' } }, mode === 'save' ? 'Save game' : 'Load game'), h('div', { class: 'builds' }, slots),
       h('div', { class: 'foot', style: { justifyContent: 'space-between' } }, h('div', { style: { display: 'flex', gap: '8px' } },
-        mode === 'save' ? h('button', { class: 'btn sm', onclick: () => { const text = E.exportSave(E.saveGame(S.g, S.meta)); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' })); a.download = `heroes-quest-turn-${S.g.turn}.json`; a.click(); } }, 'Save to a file') : h('button', { class: 'btn sm', onclick: () => { const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json'; inp.onchange = async () => { const t = await inp.files[0].text(); const r = E.importSave(t); if (!r.ok) { toast('That file could not be loaded: ' + (r.reason ?? 'unknown').replaceAll('-', ' '), 'bad'); return; } m.close(); hooks.loadGame(r.game, r.data.game?.meta ?? null); }; inp.click(); } }, 'Load from a file')),
+        mode === 'save' ? h('button', { class: 'btn sm', onclick: () => { const text = E.exportSave(E.saveGame(S.g, S.meta)); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' })); a.download = `heroes-quest-turn-${S.g.turn}.json`; a.click(); } }, 'Save to a file') : h('button', { class: 'btn sm', onclick: () => { const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json'; inp.onchange = async () => { if (S.busy) { toast('The other realms are still playing. Wait a moment.'); return; } const t = await inp.files[0].text(); const r = E.importSave(t); if (!r.ok) { toast('That file could not be loaded: ' + (r.reason ?? 'unknown').replaceAll('-', ' '), 'bad'); return; } m.close(); hooks.loadGame(r.game, r.data.game?.meta ?? null); }; inp.click(); } }, 'Load from a file')),
         h('button', { class: 'btn pri', onclick: () => m.close() }, 'Close'))], { width: 820, onClose: () => m.close() });
   };
   const draw2 = () => m.el.replaceChildren(draw());

@@ -45,7 +45,7 @@ export async function showTitle() {
     h('div', { class: 'trow' }, h('button', { class: 'btn', onclick: () => D.openOptions() }, 'Options'), h('button', { class: 'btn', onclick: () => D.openHelp() }, 'How to play'), h('button', { class: 'btn', onclick: () => D.openCredits() }, 'Credits')));
   t.append(h('img', { class: 'tbg', src: 'play/assets/scenes/title.webp', alt: '' }), h('div', { class: 'tshade' }),
     h('div', { class: 'tleft' }, h('h1', {}, 'Heroes Quest'), h('div', { class: 'tag' }, 'A war for the crown of the broken land'), nav),
-    h('div', { class: 'small' }, 'Early test build · your saves live in this browser · Created by Matt Shaffer · ', h('a', { href: 'https://github.com/mshaffe1111/Heroes-Quest' }, 'the code is on GitHub')));
+    h('div', { class: 'small' }, D.persistent ? 'Early test build · your saves live in this browser · Created by Matt Shaffer · ' : 'This browser is not letting the game keep saves: they will be lost when you close the page. Use Save to a file. · ', h('a', { href: 'https://github.com/mshaffe1111/Heroes-Quest' }, 'the code is on GitHub')));
 }
 function agoText(t) { if (!t) return ''; const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'saved just now' : m < 60 ? `saved ${m} minute${m === 1 ? '' : 's'} ago` : m < 1440 ? `saved ${Math.round(m / 60)} hour${Math.round(m / 60) === 1 ? '' : 's'} ago` : `saved ${new Date(t).toLocaleDateString()}`;
 }
