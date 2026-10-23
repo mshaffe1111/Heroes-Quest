@@ -1,3 +1,4 @@
+import * as C from './coach.js';
 import { S } from './state.js';
 import { loadAssets } from './view.js';
 import { setup } from './game.js';
@@ -16,4 +17,4 @@ addEventListener('hq-fs-off', () => { S.opts.autoFull = false; saveOpts(); });  
 addEventListener('hq-fs-on', () => { S.opts.autoFull = true; saveOpts(); });
 S.goFull = goFull;
 import * as E from '../../engine/src/index.js';
-window.HQ = S; S.E = E; import('./audio.js').then((m) => { S.AU = m; });
+window.HQ = S; S.E = E; S.C = C; import('./audio.js').then((m) => { S.AU = m; });

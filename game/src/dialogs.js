@@ -1,4 +1,5 @@
 // The framed dialogs: city, battle, capture, hero offer, doctrines, reports, saves, options, help, end of game.
+import { openGuide, resetLessons } from './coach.js';
 import * as E from '../../engine/src/index.js';
 import { S, hooks, theRealm, medalImg, realmOf, colorOf, unitName, realmName, myCities, economy, unitLine } from './state.js';
 import { h, frame, openModal, closeAllModals, toast, confirmBox, crest, num, sleep, esc, REALM_LOOK, plural } from './ui.js';
@@ -192,17 +193,8 @@ export function openCities() {
 }
 
 // ===== help / options ==========================================================================================================
-export function openHelp() {
-  let m; const row = (k, t) => h('div', { style: { display: 'flex', gap: '14px', padding: '6px 0', borderBottom: '1px solid #16243a' } }, h('b', { style: { width: '150px', flex: 'none', color: '#f3dc9a', font: '700 13px Inter' } }, k), h('span', { style: { font: '500 13.5px/1.5 Inter', color: '#c7d6e8' } }, t));
-  m = openModal(frame([h('div', { class: 'eyebrow' }, 'How to play'), h('h2', { style: { fontSize: '28px', marginBottom: '12px' } }, 'Heroes Quest'),
-    h('p', { class: 'sub' }, 'Take more than half of all the cities and the other realms give up. Build armies in your cities, march them out, and take the neighbours’ castles. Every army fights until it has no pips left, and its wounds stay with it until it rests inside a city.'),
-    h('div', { class: 'sec' }, 'Tapping the map'), row('Tap your armies', 'Select them. Tap a square to see the route (and, for enemies, your chance of winning). Tap the same square again to go.'),
-    row('Tap a city', 'Your own empty city opens, so you can choose what it builds. With armies inside, the first tap selects them and the second tap opens the city. The City button does the same.'),
-    row('Join another group', 'With armies selected, tap another of your groups (or a city they stand in) and tap again: they march over and join up. A square or city holds 8 armies.'),
-    row('Press and hold', 'On armies: select them instead of marching to them. On your empty city: open it. On an army in the row at the bottom: what it is.'),
-    row('Info', 'The Info button in the army row tells you what every army in the group is and what it is good at.'), row('Drag · pinch', 'Move and zoom the map (wheel on a computer). Right-click on a computer always shows the route.'),
-    h('div', { class: 'sec' }, 'Keys'), row('N or Space', 'Next army that still has orders.'), row('F · D · W', 'Fortify (hold the ground), Done for this turn, Wake up.'), row('Enter', 'Confirm the route that is showing.'), row('Esc', 'Cancel the route, then deselect.'), row('E', 'End your turn.'), row('+ · − · arrows · C', 'Zoom, scroll, centre on the selected army.'), row('M', 'Show or hide the small map.'),
-    h('div', { class: 'foot' }, h('button', { class: 'btn pri', onclick: () => m.close() }, 'Close'))], { width: 760, onClose: () => m.close() }));
+export function openHelp(at = null) {
+  return openGuide(at, { onLessons: S.g ? () => { resetLessons(); hooks.replayLessons?.(); } : () => { resetLessons(); toast('The lessons will start with your next new game.'); } });
 }
 export const DEFAULT_OPTS = { odds: true, autoNext: true, sound: true, music: true, replay: true, follow: true, moveSpeed: 60, musicVol: 70, fxVol: 85, quietHidden: true, confirmEnd: true, enemyMode: 'watch' };
 export function openOptions() {

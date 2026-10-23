@@ -42,8 +42,11 @@ export function frame(children, { width = 640, clear = false, onClose = null, cl
     ...['tl', 'tr', 'bl', 'br'].map((p) => h('i', { class: 'cn ' + p })), closeButton && onClose ? h('button', { class: 'x', title: 'Close', onclick: onClose }, '✕') : null, children);
   return f;
 }
+let LAST_DOWN = 0; if (typeof document !== 'undefined') document.addEventListener('pointerdown', () => { LAST_DOWN = performance.now(); }, true);
 export function openModal(content, { clear = false, dismiss = true, onClose = null } = {}) {
   const back = h('div', { class: 'back' + (clear ? ' clear' : '') }, content);
+  // FIX (phones): the tap that opened a window must not also land on a button inside it (the click follows the touch by a moment)
+  const born = performance.now(); back.addEventListener('click', (e) => { if (LAST_DOWN < born && performance.now() - born < 700) { e.stopPropagation(); e.preventDefault(); } }, true);
   const m = { el: back, dismiss, onEsc: null, close() { const i = stack.indexOf(m); if (i >= 0) stack.splice(i, 1); back.remove(); if (onClose) onClose(); } };
   if (dismiss) back.addEventListener('pointerdown', (e) => { if (e.target === back) m.close(); });
   modalsEl().append(back); stack.push(m); return m;

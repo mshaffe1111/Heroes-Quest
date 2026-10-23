@@ -8,6 +8,7 @@ import * as D from './dialogs.js';
 import { TP } from './paint.js';
 import { initAudio, sfx, stepSound, setScene } from './audio.js';
 import * as PB from './playback.js';
+import * as CO from './coach.js';
 
 // ======================================================================================================================
 // building a new game
@@ -103,11 +104,29 @@ export async function enterGame(g, { resume = false } = {}) {
   const cap = [...g.cities.values()].find((c) => c.owner === S.me) ?? [...g.cities.values()][0];
   const hero = [...g.armies.values()].find((a) => a.owner === S.me && a.x != null) ;
   view.fit(); const z0 = Math.max(0.9, view.cam.z); view.centerOn((hero ?? cap).x, (hero ?? cap).y, z0);
-  hooks.refresh = refresh; hooks.openCity = D.openCity;
+  hooks.refresh = refresh; hooks.openCity = D.openCity; hooks.replayLessons = () => { closeAllModals(); CO.startLessons(coachApi()); };
   $('#realmlbl').replaceChildren(crest(colorOf(S.me), 18), realmName(S.me));
   refresh(); hooks.ready?.();
   if (resume) { selectNextOnStart(); await offers(); await levelUps(); return; }
   await startTurn();
+  if (g.turn === 1 && CO.lessonsWanted() && !warOver()) CO.startLessons(coachApi());
+}
+/** What the advisor needs to see of the game: where things are on screen, what is selected, what waits. */
+function coachApi() {
+  const v = () => S.view; const rect = () => v().cv.getBoundingClientRect();
+  return {
+    S, waiting, myCities, deselect, modalOpen, openGuide: (ch) => D.openHelp(ch),
+    cityWindowOpen: () => !!document.querySelector('#modals .citygrid'),
+    heroGroup: () => { const hero = [...S.g.armies.values()].find((a) => a.owner === S.me && a.x != null && E.isHero(a)); return hero ? { hero, count: ownAt(hero.x, hero.y).length, where: E.cityAt(S.g, hero.x, hero.y)?.name ?? null } : null; },
+    stackAt: (x, y) => { const st = (v().stackPos ?? []).find((q) => q.x === x && q.y === y && q.px != null); if (!st) return null; const r = rect(); return { x: r.left + st.px, y: r.top + st.py, r: st.D / 2 + 9 }; },
+    tileAt: (x, y) => { const p = v().toScreen(x, y), r = rect(), z = v().cam.z; if (p.x < 0 || p.y < 0 || p.x > r.width || p.y > r.height) return null; return { x: r.left + p.x, y: r.top + p.y, r: Math.max(22, TP * z * 0.62) }; },
+    cityLabel: (id) => { const c = (v().cityHits ?? []).find((q) => q.id === id && q.kind === 'label'); if (!c) return null; const r = rect(), [x, y, w, hh] = c.r; return { x: r.left + x + w / 2, y: r.top + y + hh / 2, w: w + 12, hgt: hh + 10 }; },
+    suggest: () => {      // something safe and worth a visit within this turn's reach: a temple or library
+      const re = v().reach; if (!re) return null; const W = S.g.width;
+      for (const i of re.reach) { const st = E.siteAt(S.g, i % W, (i / W) | 0); if (st && (st.kind === 'temple' || st.kind === 'library')) return { x: st.x, y: st.y, what: st.kind, why: st.kind === 'temple' ? 'every army that enters is blessed.' : 'your hero can study there.' }; }
+      return null;
+    },
+  };
 }
 function leaveGame() { document.body.classList.remove('ingame'); S.view?.destroy(); S.view = null; $('#game').classList.add('hidden'); closeAllModals(); S.g = null; }
 hooks.toTitle = async () => { if (S.busy) { toast('The other realms are still playing. Wait a moment.'); return; } if (S.g && !S.g.over) D.doAutosave(); leaveGame(); const { showTitle } = await import('./newgame.js'); showTitle(); };
@@ -136,12 +155,15 @@ async function startTurn() {
   selectNextOnStart();
   const idleCities = myCities().filter((c) => !c.building).length; const hasArmies = [...g.armies.values()].some((q) => q.owner === S.me && q.x != null);
   if (!hasArmies && myCities().length) setTimeout(() => toast('You have no armies. Open a city and choose what it builds.', 'bad'), 700);
-  else if (idleCities) setTimeout(() => toast(`${idleCities} of your cities ${idleCities === 1 ? 'is' : 'are'} not building anything.`), 1000);
+  else if (idleCities && !(g.turn === 1 && CO.lessonsWanted())) setTimeout(() => toast(`${idleCities} of your cities ${idleCities === 1 ? 'is' : 'are'} not building anything.`), 1000);
+  if (g.turn > 1) setTimeout(() => { if (!modalOpen()) CO.tipOnce('enemy-turn', { openGuide: (ch) => D.openHelp(ch) }); }, 1400);
+  { const e2 = economy(); if (e2.income - e2.upkeep < 0 && realmGoldLow()) setTimeout(() => { if (!modalOpen()) CO.tipOnce('low-gold', { openGuide: (ch) => D.openHelp(ch) }); }, 1800); }
   await offers(); await levelUps();
 }
+function realmGoldLow() { const e = economy(); return S.g.realms.get(S.me).gold < (e.upkeep - e.income) * 4; }
 async function offers() {
   const g = S.g; const realm = g.realms.get(S.me);
-  if (realm.heroOffer) { sfx('hero'); const o = realm.heroOffer; const yes = await D.heroOfferDialog(o); if (yes) { const r = E.acceptHero(g, S.me); if (r.ok) toast(`${o.name} joins you in ${g.cities.get(o.cityId).name}.`, 'good'); } else realm.heroOffer = null; refresh(); }
+  if (realm.heroOffer) { sfx('hero'); setTimeout(() => CO.tipOnce('hero-offer', { openGuide: (ch) => D.openHelp(ch) }), 400); const o = realm.heroOffer; const yes = await D.heroOfferDialog(o); if (yes) { const r = E.acceptHero(g, S.me); if (r.ok) toast(`${o.name} joins you in ${g.cities.get(o.cityId).name}.`, 'good'); } else realm.heroOffer = null; refresh(); }
 }
 /** Where the player's attention belongs right now: the first army that wants orders, else any army of theirs, else their capital. */
 function homeSpot() {
@@ -242,7 +264,7 @@ function nextArmy() {
   const elsewhere = sel ? idle.filter((a) => a.x !== sel.x || a.y !== sel.y) : idle;      // FIX: skip the square we are already on
   const here = sel ? Math.min(...selArmies().map(num), Infinity) : -1;
   const a = elsewhere.find((q) => num(q) > here) ?? elsewhere[0] ?? idle[0];
-  sfx('select'); selectStack(a.x, a.y); S.view.centerOn(a.x, a.y);
+  sfx('select'); CO.lessonNote('next'); selectStack(a.x, a.y); S.view.centerOn(a.x, a.y);
 }
 function order(kind) {
   if (!S.sel || S.busy) return; const ids = S.sel.ids; let r; if (kind !== 'disband') sfx('order');
@@ -385,8 +407,10 @@ async function doAttack(ids, x, y) {
   if (!res.ok) { toast('Cannot attack: ' + res.reason.replaceAll('-', ' ') + '.', 'bad'); return; }
   S.view.touch();
   if (res.battle) await D.showBattle(res, { attacker: S.me, defender: defOwner, place: city?.name ?? null, tile });
+  if (res.battle && !res.captureNeeded) setTimeout(() => CO.tipOnce('battle', { openGuide: (ch) => D.openHelp(ch) }), 300);
   if (res.captureNeeded) {
-    const c = await D.askCapture(res.cityId); const r = E.resolveCapture(g, c); sfx(c === 'raze' ? 'fall' : 'capture'); if (r.gold) setTimeout(() => sfx('coin'), 500);
+    setTimeout(() => CO.tipOnce('capture', { openGuide: null }), 350);
+    const c = await D.askCapture(res.cityId); CO.tipClose(); const r = E.resolveCapture(g, c); sfx(c === 'raze' ? 'fall' : 'capture'); if (r.gold) setTimeout(() => sfx('coin'), 500);
     toast(`${r.city.name} ${c === 'raze' ? 'is razed' : 'is yours'}${r.gold ? ` · +${num(r.gold)} gold` : ''}.`, 'good');
     // FIX: take the player straight into the city (production, garrison) instead of leaving them on the map
     S.view.centerOn(r.city.x, r.city.y); S.view.touch(); refresh();
@@ -409,6 +433,17 @@ function computeReach() {
   for (let i = 0; i < W * g.height; i++) { const d = Math.min(s.dist[i * 2], s.dist[i * 2 + 1]); if (!(d <= mp)) continue; const act = s.how[s.dist[i * 2] <= s.dist[i * 2 + 1] ? i * 2 : i * 2 + 1];
     if (act === 'attack') { const x = i % W, y = (i / W) | 0; if (!E.fogOn(g) || E.visibleSet(g, S.me).has(i)) hit.add(i); } else reach.add(i); }
   reach.delete(arm[0].y * W + arm[0].x); v.reach = { reach, hit }; v.dirty = true;
+  if (!CO.lessonsActive() && !S.busy) setTimeout(() => reachTips(arm, reach, hit), 450);
+}
+/** The first time the selected group can reach an enemy, a free city or a special place, the advisor says what it is. */
+function reachTips(arm, reach, hit) {
+  if (!S.g || S.busy || modalOpen() || CO.tipShowing()) return; const g = S.g, W = g.width; const api = coachApi(); const more = { openGuide: (ch) => D.openHelp(ch) };
+  const at = (i) => ({ x: i % W, y: (i / W) | 0 }); const ring = (p) => () => api.tileAt(p.x, p.y);
+  for (const i of hit) { const p = at(i); const c = E.cityAt(g, p.x, p.y);
+    if (c && !c.owner && CO.tipOnce('free-city', { ...more, target: ring(p) })) return;
+    if (!c || c.owner) { if (CO.tipOnce('enemy-reach', { ...more, target: () => api.stackAt(p.x, p.y) ?? api.tileAt(p.x, p.y) })) return; } }
+  if (!arm.some(E.isHero)) return;
+  for (const i of reach) { const p = at(i); const st = E.siteAt(g, p.x, p.y); if (st && !st.explored && ['ruin', 'temple', 'library', 'tower'].includes(st.kind) && CO.tipOnce('site-' + st.kind, { ...more, target: ring(p) })) return; }
 }
 function refresh() {
   if (!S.g) return; const g = S.g; const eco = economy(); const realm = g.realms.get(S.me); try { computeReach(); } catch (e) { console.warn('reach', e); }
@@ -619,7 +654,7 @@ async function levelUps() {
   const g = S.g; if (!g || g.rules.classic) return;
   for (const hero of [...g.armies.values()].filter((a) => a.owner === S.me && E.isHero(a) && a.perkPoints > 0)) {
     while (hero.perkPoints > 0 && g.armies.has(hero.id)) {
-      const o = E.offerPerks(g, hero.id); if (!o.ok) break; sfx('victory');
+      const o = E.offerPerks(g, hero.id); if (!o.ok) break; sfx('victory'); setTimeout(() => CO.tipOnce('levelup', { openGuide: null }), 350);
       const have = (hero.perks ?? []).map((k) => E.PERKS[k]?.name).filter(Boolean);
       const key = await abilityPicker({ img: 'levelup', eyebrow: 'Level up', title: `${hero.name ?? 'Your hero'} reaches level ${hero.level - hero.perkPoints + 1}`, sub: 'Choose one ability. The hero keeps it for the rest of the war.', offer: o.offer,
         note: have.length ? `Already has ${have.join(', ')}. The three offered are ones the hero does not have yet.` : 'The three offered lean toward the hero’s nature.' });
