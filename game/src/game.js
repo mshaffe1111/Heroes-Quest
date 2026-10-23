@@ -399,8 +399,19 @@ async function doAttack(ids, x, y) {
 
 // ======================================================================================================================
 // panels
+/** Squares the selected armies can reach this turn, and enemies they can attack this turn: shown softly on the map. */
+function computeReach() {
+  const g = S.g; const v = S.view; if (!v) return; const arm = selArmies().filter(movable);
+  const key = arm.length ? `${g.turn}#${g.armies.size}#` + arm.map((a) => `${a.id}:${a.x},${a.y}:${a.mp}`).join('|') : ''; if (key === v.reachKey) return; v.reachKey = key;
+  if (!arm.length || warOver()) { v.reach = null; v.dirty = true; return; }
+  const mp = E.limitingMovePoints(arm); const s = E.routeSearch(g, arm.map((a) => a.id), { maxCost: mp }); const W = g.width;
+  const reach = new Set(), hit = new Set();
+  for (let i = 0; i < W * g.height; i++) { const d = Math.min(s.dist[i * 2], s.dist[i * 2 + 1]); if (!(d <= mp)) continue; const act = s.how[s.dist[i * 2] <= s.dist[i * 2 + 1] ? i * 2 : i * 2 + 1];
+    if (act === 'attack') { const x = i % W, y = (i / W) | 0; if (!E.fogOn(g) || E.visibleSet(g, S.me).has(i)) hit.add(i); } else reach.add(i); }
+  reach.delete(arm[0].y * W + arm[0].x); v.reach = { reach, hit }; v.dirty = true;
+}
 function refresh() {
-  if (!S.g) return; const g = S.g; const eco = economy(); const realm = g.realms.get(S.me);
+  if (!S.g) return; const g = S.g; const eco = economy(); const realm = g.realms.get(S.me); try { computeReach(); } catch (e) { console.warn('reach', e); }
   $('#turnlbl').textContent = `Turn ${g.turn}`;
   $('#pturn').textContent = `Turn ${g.turn}`; $('#pcrest').replaceChildren(crest(colorOf(S.me), 22)); $('#pgold').replaceChildren(h('b', {}, num(realm.gold)), h('em', { class: eco.income - eco.upkeep >= 0 ? 'p' : 'n' }, `${eco.income - eco.upkeep >= 0 ? '+' : '−'}${Math.abs(eco.income - eco.upkeep)}`));
   const nn = (S.notes ?? []).length; $('#pbelln').textContent = nn ? String(nn) : ''; $('#pbell').classList.toggle('has', !!nn);

@@ -203,10 +203,13 @@ export class MapView {
         this.cityHits.push({ id: c.id, x: c.x, y: c.y, kind: 'castle', r: [s.x - w * 0.42, s.y + TP * z * 0.46 - h * 0.92, w * 0.84, h * 0.92] }); }
       cityLabels.push({ c, s, realm, owner, live, razed });
     }
+    // where the selected armies can go this turn (soft light), and what they can attack (red corners)
+    if (this.reach && !this.path) this.drawReach(ctx, S, tx0, tx1, ty0, ty1);
     // route preview
     if (this.path && this.path.steps?.length) this.drawPath(ctx, S);
     // armies
     this.drawArmies(ctx, S, view, tx0, tx1, ty0, ty1, now);
+    if (this.reach && !this.path) this.drawTargets(ctx, S, tx0, tx1, ty0, ty1, now);
     if (this.ghosts.length || this.fx.length) this.drawPlayback(ctx, S, now);
     // fog
     if (view) {
@@ -308,6 +311,23 @@ export class MapView {
     this.stackPos = list;
   }
 
+  drawReach(ctx, S, tx0, tx1, ty0, ty1) {
+    const g = this.g, W = g.width, z = this.cam.z, r = TP * z; const { reach, hit } = this.reach; ctx.save();
+    ctx.fillStyle = 'rgba(255,244,205,0.2)'; ctx.strokeStyle = 'rgba(255,240,190,0.85)'; ctx.lineWidth = Math.max(1.5, z * 2);
+    for (let y = ty0; y <= ty1; y++) for (let x = tx0; x <= tx1; x++) { if (!reach.has(y * W + x)) continue; const s = S(x, y); ctx.fillRect(s.x - r / 2 + 1, s.y - r / 2 + 1, r - 2, r - 2);
+      // edge lines only where the reachable area ends, so the area reads as one shape
+      ctx.beginPath(); if (!reach.has((y - 1) * W + x)) { ctx.moveTo(s.x - r / 2, s.y - r / 2); ctx.lineTo(s.x + r / 2, s.y - r / 2); } if (!reach.has((y + 1) * W + x)) { ctx.moveTo(s.x - r / 2, s.y + r / 2); ctx.lineTo(s.x + r / 2, s.y + r / 2); }
+      if (!reach.has(y * W + x - 1)) { ctx.moveTo(s.x - r / 2, s.y - r / 2); ctx.lineTo(s.x - r / 2, s.y + r / 2); } if (!reach.has(y * W + x + 1)) { ctx.moveTo(s.x + r / 2, s.y - r / 2); ctx.lineTo(s.x + r / 2, s.y + r / 2); } ctx.stroke(); }
+    ctx.restore();
+  }
+  /** Enemies the selected group can reach this turn: a red ring round their medal, drawn over the armies so it is never hidden. */
+  drawTargets(ctx, S, tx0, tx1, ty0, ty1, now) {
+    const W = this.g.width, rr = this.medalSize() / 2 + 5, pulse = 0.75 + 0.25 * Math.sin(now * 5); ctx.save();
+    for (const i of this.reach.hit) { const x = i % W, y = (i / W) | 0; if (x < tx0 || x > tx1 || y < ty0 || y > ty1) continue; const m = (this.stackPos ?? []).find((q) => q.x === x && q.y === y && q.px != null); const s = m ? { x: m.px, y: m.py } : S(x, y);
+      ctx.beginPath(); ctx.arc(s.x, s.y, rr + 2, 0, 7); ctx.strokeStyle = 'rgba(10,6,4,0.7)'; ctx.lineWidth = 6; ctx.stroke();
+      ctx.beginPath(); ctx.arc(s.x, s.y, rr + 2, 0, 7); ctx.strokeStyle = `rgba(255,90,70,${pulse})`; ctx.lineWidth = 3.5; ctx.setLineDash([9, 6]); ctx.stroke(); ctx.setLineDash([]); }
+    ctx.restore();
+  }
   drawPath(ctx, S) {
     const p = this.path; const pts = p.steps.map((q) => S(q.x, q.y)); const from = S(p.from.x, p.from.y);
     ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';

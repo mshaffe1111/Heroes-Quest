@@ -567,3 +567,33 @@ body.pl #cmddesel,body.pp #cmddesel{order:13}body.pl #cmdsearch,body.pp #cmdsear
 
 /* the battle window carries the battle painting behind its title */
 .bt .bthead{background:linear-gradient(180deg,rgba(14,10,8,.35),rgba(14,10,8,.85)),url(assets/scenes/battle.webp) center 40%/cover}
+/* the X always sits above the window's title (the painted titles have their own layer and used to cover it), and is a full finger's size */
+.frame .x{z-index:6;width:42px;height:42px;display:flex;align-items:center;justify-content:center;border-radius:4px;cursor:pointer;font-size:20px;line-height:1}
+.frame .x:active{background:var(--gl);color:#20160a}
+/* ===== touch screens: finger-sized controls and readable text (Apple asks for 44 pt targets, Google 48 dp; text 11 px or more) ===== */
+@media (pointer:coarse),(max-width:900px){
+ .btn.sm{min-height:44px;padding:0 14px;font-size:12px}
+ .frame .foot .btn{min-height:46px}
+ .sw{width:54px;height:32px;border-radius:16px}.sw::after{width:26px;height:26px}
+ .sw.on::after{left:25px}
+ input[type=range]{height:44px}
+ .sw::before{content:'';position:absolute;inset:-8px -6px}
+ .btn.sm[aria-label$="track"]{min-width:44px}
+ .forow .btn.sm{min-width:44px;min-height:44px}
+ #ptop .pmenu,#ptop .pbell,#ptop .fsbtn.pfs{width:44px;height:40px}
+ .statbox small{font-size:11px;letter-spacing:.08em}
+ table.t th{font-size:12px;letter-spacing:.06em}
+ .rcard em{font-size:11px;letter-spacing:.08em}
+ body.pl .ucard .nm,body.pp .ucard .nm{font-size:11px}
+ body.pl #gmove small,body.pp #gmove small{font-size:10.5px}
+ body.pp .minihint{font-size:11px}
+ .uinfo span{font-size:11px}
+ body.pl .btn.cmd,body.pp .btn.cmd{font-size:11px;letter-spacing:0;text-transform:none;font-family:var(--body);font-weight:700}
+}
+/* sideways phones: four commands a row and a shorter small map, so End turn always fits */
+body.pl #stage{grid-template-columns:minmax(0,1fr) clamp(200px,30vw,250px)}
+body.pl #cmds{grid-template-columns:repeat(4,minmax(0,1fr))}
+body.pl .btn.cmd{min-height:40px}
+@media (max-height:400px){body.pl #minislot{height:74px}body.pl .btn.cmd{min-height:38px;font-size:10.5px}body.pl .btn.cmd img{width:14px;height:14px}body.pl #endwrap #endbtn{min-height:42px}}
+/* sideways: the city's army types two to a row */
+@media (max-height:520px) and (min-width:640px){.builds{grid-template-columns:1fr 1fr!important}.bcard{padding:8px 10px!important}.bcard .d{min-height:0}}
