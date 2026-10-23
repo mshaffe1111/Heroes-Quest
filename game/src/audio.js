@@ -62,16 +62,17 @@ export function initAudio() {
 }
 
 // ---- recorded effects ----------------------------------------------------------------------------------------------
-// logical name -> files (one is picked at random), a loudness trim, and which bus.  `cut` fades a long file out after that many seconds.
+// logical name -> files (one is picked at random), a loudness trim, and which bus. Effects remade Oct 2026 with Stable Audio 3 Small-SFX; the trims
+// keep each one exactly as loud in play as the sound it replaced (aimusic/pick_sfx.py).  `cut` fades a long file out after that many seconds.
 const SAMPLES = {
-  click: { f: ['sfx/ui_click'], g: 2.4 }, select: { f: ['sfx/ui_select_army'], g: 1.8 }, order: { f: ['sfx/ui_confirm'], g: 2.6 },
-  error: { f: ['sfx/ui_error'], g: 2.6 }, open: { f: ['sfx/ui_open'], g: 3.2 }, close: { f: ['sfx/ui_close'], g: 2.6 }, cancel: { f: ['sfx/ui_cancel'], g: 1.8 }, page: { f: ['sfx/ui_page'], g: 2 },
-  step: { f: ['sfx/move_infantry'], g: 1.9, cut: 0.7 }, stepCav: { f: ['sfx/move_cavalry'], g: 1.4, cut: 0.8 }, march: { f: ['sfx/move_march_long'], g: 1.4, cut: 1.4 },
-  horn: { f: ['sfx/war_horn'], g: 0.8, cut: 3.2 }, battle: { f: ['sfx/battle_begin'], g: 0.85, cut: 3.5 }, cry: { f: ['sfx/battle_cry'], g: 0.8 },
-  clash: { f: ['sfx/sword_clash_1', 'sfx/sword_clash_2', 'sfx/sword_clash_3', 'sfx/sword_clash_4'], g: 1.0, gap: 0.07 }, swing: { f: ['sfx/sword_swing_1', 'sfx/sword_swing_2', 'sfx/sword_swing_3', 'sfx/sword_swing_4'], g: 1.2, gap: 0.07 },
-  hit: { f: ['sfx/hit_heavy', 'sfx/hit_light'], g: 1.1, gap: 0.07 }, fall: { f: ['sfx/army_falls'], g: 1.2, gap: 0.12 }, block: { f: ['sfx/shield_block'], g: 1.1, gap: 0.08 }, arrows: { f: ['sfx/arrows_volley'], g: 1.2 },
-  coin: { f: ['sfx/coins'], g: 2.2 }, coinBig: { f: ['sfx/coins_big'], g: 2 }, gong: { f: ['sfx/end_turn'], g: 2.4 }, gate: { f: ['sfx/gate_open'], g: 1.7 }, gateShut: { f: ['sfx/gate_close'], g: 1.7 },
-  cheer: { f: ['sfx/city_cheer'], g: 1.2, cut: 3.5 }, built: { f: ['sfx/army_built'], g: 2 },
+  click: { f: ['sfx/ui_click'], g: 0.65 }, select: { f: ['sfx/ui_select_army'], g: 0.48 }, order: { f: ['sfx/ui_confirm'], g: 1.47 },
+  error: { f: ['sfx/ui_error'], g: 0.25 }, open: { f: ['sfx/ui_open'], g: 0.56 }, close: { f: ['sfx/ui_close'], g: 0.32 }, cancel: { f: ['sfx/ui_cancel'], g: 0.29 }, page: { f: ['sfx/ui_page'], g: 0.51 },
+  step: { f: ['sfx/move_infantry'], g: 1.49, cut: 0.7 }, stepCav: { f: ['sfx/move_cavalry'], g: 0.8, cut: 0.8 }, march: { f: ['sfx/move_march_long'], g: 0.86, cut: 1.4 },
+  horn: { f: ['sfx/war_horn'], g: 0.52, cut: 3.2 }, battle: { f: ['sfx/battle_begin'], g: 0.64, cut: 3.5 }, cry: { f: ['sfx/battle_cry'], g: 0.58 },
+  clash: { f: ['sfx/sword_clash_1', 'sfx/sword_clash_2', 'sfx/sword_clash_3', 'sfx/sword_clash_4'], g: 0.82, gap: 0.07 }, swing: { f: ['sfx/sword_swing_1', 'sfx/sword_swing_2', 'sfx/sword_swing_3', 'sfx/sword_swing_4'], g: 0.62, gap: 0.07 },
+  hit: { f: ['sfx/hit_heavy', 'sfx/hit_light'], g: 0.88, gap: 0.07 }, fall: { f: ['sfx/army_falls'], g: 1.12, gap: 0.12 }, block: { f: ['sfx/shield_block'], g: 0.2, gap: 0.08 }, arrows: { f: ['sfx/arrows_volley'], g: 0.93 },
+  coin: { f: ['sfx/coins'], g: 0.89 }, coinBig: { f: ['sfx/coins_big'], g: 1.17 }, gong: { f: ['sfx/end_turn'], g: 0.88 }, gate: { f: ['sfx/gate_open'], g: 1.02 }, gateShut: { f: ['sfx/gate_close'], g: 0.91 },
+  cheer: { f: ['sfx/city_cheer'], g: 0.91, cut: 3.5 }, built: { f: ['sfx/army_built'], g: 1.05 },
   chime: { f: ['stings/turn_start'], g: 1, sting: true }, victory: { f: ['stings/battle_won'], g: 1, sting: true }, defeat: { f: ['stings/battle_lost'], g: 1, sting: true },
   capture: { f: ['stings/city_captured'], g: 1, sting: true }, hero: { f: ['stings/hero_recruited'], g: 1, sting: true }, levelup: { f: ['stings/hero_level_up'], g: 1, sting: true },
   build: { f: ['stings/unit_built'], g: 1, sting: true }, ruin: { f: ['stings/ruin_discovered'], g: 1, sting: true }, temple: { f: ['stings/temple_blessing'], g: 1, sting: true },

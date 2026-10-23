@@ -10,7 +10,11 @@ All eight music tracks and the nine event stings are original to Heroes Quest, p
 - In-game menu ("War Camp at Night" I and II) and pause ("Quiet Before Dawn" I and II) were generated with **Stable Audio 3 Medium** (Stability AI, via the Hugging Face Space stabilityai/stable-audio-3), then levelled and faded for the game. Stability AI says the model was trained only on licensed music.
 - Licence: **Stability AI Community License**. The output belongs to us and commercial use is free while yearly revenue stays under US $1M; above that an enterprise licence is needed. Prompts and seeds are kept in the project scratch notes.
 
-## Sound effects
+## Sound effects remade with Stable Audio 3 (October 2026)
+- Every interface, battle, movement and city sound in play/audio/sfx was regenerated with **Stable Audio 3 Small-SFX** (Stability AI), run locally, then trimmed, faded and level-matched (Stability AI Community License: ours to use commercially under US $1M yearly revenue). Stability AI says the model was trained only on licensed audio.
+- The older sounds listed below are no longer in the game; the list stays for the record.
+
+## Sound effects (previous set)
 - Kenney (kenney.nl) RPG Audio and Impact Sounds: CC0.
 - StarNinjas (opengameart.org/users/starninjas), sword attacks, sword clashes, crowd shouting: CC0 (credit appreciated).
 - Eldritch Grim, War Horns: CC0 (credit appreciated).
