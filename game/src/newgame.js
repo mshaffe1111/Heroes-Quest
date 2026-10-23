@@ -46,8 +46,30 @@ export async function showTitle() {
     h('div', { class: 'trow' }, h('button', { class: 'btn', onclick: () => D.openOptions() }, 'Options'), h('button', { class: 'btn', onclick: () => D.openHelp() }, 'How to play'), h('button', { class: 'btn', onclick: () => D.openCredits() }, 'Credits')));
   t.append(h('img', { class: 'tbg', src: 'play/assets/scenes/title.webp', alt: '' }), h('div', { class: 'tshade' }),
     h('div', { class: 'tleft' }, h('h1', {}, 'Heroes Quest'), h('div', { class: 'tag' }, 'A war for the crown of the broken land'), nav),
-    h('div', { class: 'built' }, builtText()), h('div', { class: 'small' }, D.persistent ? 'Early test build · your saves live in this browser · Created by Matt Shaffer · ' : 'This browser is not letting the game keep saves: they will be lost when you close the page. Use Save to a file. · ', h('a', { href: 'https://github.com/mshaffe1111/Heroes-Quest' }, 'the code is on GitHub')));
+    h('div', { class: 'built', id: 'tbuilt' }, builtText()), h('div', { class: 'small' }, D.persistent ? 'Early test build · your saves live in this browser · Created by Matt Shaffer · ' : 'This browser is not letting the game keep saves: they will be lost when you close the page. Use Save to a file. · ', h('a', { href: 'https://github.com/mshaffe1111/Heroes-Quest' }, 'the code is on GitHub')));
+  if (justUpdated()) toast('You are on the newest version.', 'good');
+  checkUpdate();
 }
+/**
+ * Auto-update (Matt 22 Oct): every time the title screen shows, ask GitHub for the newest build time (version.json, never cached). If it is newer
+ * than this copy, say so and refresh onto it; the page asks for game.js with the build time on the end, so the refresh cannot reuse an old copy.
+ * One automatic try per new version (a slow cache must not cause a refresh loop); after that a button does it.
+ */
+async function checkUpdate() {
+  try {
+    const r = await fetch(`play/version.json?t=${Date.now()}`, { cache: 'no-store' }); if (!r.ok) return;
+    const v = (await r.json()).built; if (!v || v === __BUILT__ || !(new Date(v) > new Date(__BUILT__))) return;
+    const go = () => location.replace(`${location.pathname}?v=${encodeURIComponent(v.replace(/[^0-9]/g, '').slice(0, 14))}`);
+    const when = new Date(v).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    const el = $('#tbuilt'); let tried = null; try { tried = sessionStorage.getItem('hq-upd'); } catch { /* private mode */ }
+    if (tried !== v) {
+      try { sessionStorage.setItem('hq-upd', v); } catch { /* private mode */ }
+      el?.replaceChildren(h('b', { class: 'newver' }, `A new version is out (${when}). Updating…`)); setTimeout(go, 1400);
+    } else el?.replaceChildren(h('b', { class: 'newver' }, `A new version is out (${when}).`), ' ', h('button', { class: 'btn sm pri', onclick: go }, 'Update now'));
+  } catch { /* offline: play what we have */ }
+}
+/** Straight after an update: say so once. */
+function justUpdated() { try { if (sessionStorage.getItem('hq-upd') === __BUILT__) { sessionStorage.setItem('hq-upd', 'shown'); return true; } } catch { /* private mode */ } return false; }
 /** When this version of the game was built (stamped by build.mjs), so a fresh push is easy to spot. */
 function builtText() { try { const d = new Date(__BUILT__); return 'Updated ' + d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch { return ''; } }
 function agoText(t) { if (!t) return ''; const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'saved just now' : m < 60 ? `saved ${m} minute${m === 1 ? '' : 's'} ago` : m < 1440 ? `saved ${Math.round(m / 60)} hour${Math.round(m / 60) === 1 ? '' : 's'} ago` : `saved ${new Date(t).toLocaleDateString()}`;
