@@ -73,10 +73,10 @@ const SAMPLES = {
   hit: { f: ['sfx/hit_heavy', 'sfx/hit_light'], g: 0.88, gap: 0.07 }, fall: { f: ['sfx/army_falls'], g: 1.12, gap: 0.12 }, block: { f: ['sfx/shield_block'], g: 0.2, gap: 0.08 }, arrows: { f: ['sfx/arrows_volley'], g: 0.93 },
   coin: { f: ['sfx/coins'], g: 0.89 }, coinBig: { f: ['sfx/coins_big'], g: 1.17 }, gong: { f: ['sfx/end_turn'], g: 0.88 }, gate: { f: ['sfx/gate_open'], g: 1.02 }, gateShut: { f: ['sfx/gate_close'], g: 0.91 },
   cheer: { f: ['sfx/city_cheer'], g: 0.91, cut: 3.5 }, built: { f: ['sfx/army_built'], g: 1.05 },
-  chime: { f: ['stings/turn_start'], g: 1, sting: true }, victory: { f: ['stings/battle_won'], g: 1, sting: true }, defeat: { f: ['stings/battle_lost'], g: 1, sting: true },
-  capture: { f: ['stings/city_captured'], g: 1, sting: true }, hero: { f: ['stings/hero_recruited'], g: 1, sting: true }, levelup: { f: ['stings/hero_level_up'], g: 1, sting: true },
-  build: { f: ['stings/unit_built'], g: 1, sting: true }, ruin: { f: ['stings/ruin_discovered'], g: 1, sting: true }, temple: { f: ['stings/temple_blessing'], g: 1, sting: true },
-  lost: { f: ['stings/battle_lost'], g: 0.8, sting: true },
+  chime: { f: ['stings/turn_start_1', 'stings/turn_start_2', 'stings/turn_start_3'], g: 1, sting: true }, victory: { f: ['stings/battle_won_1', 'stings/battle_won_2', 'stings/battle_won_3'], g: 1, sting: true }, defeat: { f: ['stings/battle_lost_1', 'stings/battle_lost_2', 'stings/battle_lost_3'], g: 1, sting: true },
+  capture: { f: ['stings/city_captured_1', 'stings/city_captured_2', 'stings/city_captured_3'], g: 1, sting: true }, hero: { f: ['stings/hero_recruited_1', 'stings/hero_recruited_2', 'stings/hero_recruited_3'], g: 1, sting: true }, levelup: { f: ['stings/hero_level_up_1', 'stings/hero_level_up_2', 'stings/hero_level_up_3'], g: 1, sting: true },
+  build: { f: ['stings/unit_built_1', 'stings/unit_built_2', 'stings/unit_built_3'], g: 1, sting: true }, ruin: { f: ['stings/ruin_discovered_1', 'stings/ruin_discovered_2', 'stings/ruin_discovered_3'], g: 1, sting: true }, temple: { f: ['stings/temple_blessing_1', 'stings/temple_blessing_2', 'stings/temple_blessing_3'], g: 1, sting: true },
+  lost: { f: ['stings/battle_lost_1', 'stings/battle_lost_2', 'stings/battle_lost_3'], g: 0.8, sting: true },
 };
 async function loadOne(path) {
   if (buffers.has(path)) return buffers.get(path); if (loading.has(path)) return loading.get(path);
@@ -91,7 +91,7 @@ function playSample(name, { rate = 1, delay = 0, gain = 1 } = {}) {
   const def = SAMPLES[name]; if (!def) return false; const path = pick(def.f); const buf = buffers.get(path); if (!buf) return false;
   const now = performance.now(); if (def.gap && now - (lastPlayed.get(name) ?? -1e9) < def.gap * 1000) return true; lastPlayed.set(name, now);
   if (voices >= 14) return true;                                  // never stack an avalanche of sounds
-  const t0 = ctx.currentTime + delay; const src = ctx.createBufferSource(); src.buffer = buf; src.playbackRate.value = rate * (def.f.length > 1 ? rnd(0.96, 1.04) : 1);
+  const t0 = ctx.currentTime + delay; const src = ctx.createBufferSource(); src.buffer = buf; src.playbackRate.value = rate * (def.f.length > 1 && !def.sting ? rnd(0.96, 1.04) : 1);      // musical stings keep their pitch
   const g = ctx.createGain(); const lvl = (def.g ?? 1) * gain; g.gain.setValueAtTime(lvl, t0);
   let dur = buf.duration / src.playbackRate.value; if (def.cut && def.cut < dur) { g.gain.setValueAtTime(lvl, t0 + def.cut * 0.7); g.gain.linearRampToValueAtTime(0.0001, t0 + def.cut); dur = def.cut; }
   src.connect(g); g.connect(def.sting ? stingBus : fxBus); src.start(t0, 0, Math.min(buf.duration, dur + 0.05)); voices++; src.onended = () => { voices--; try { g.disconnect(); } catch { /* done */ } };
@@ -138,12 +138,13 @@ export function testSound() { sfx('click'); setTimeout(() => sfx('clash', true),
 // ---- the music ------------------------------------------------------------------------------------------------------
 // Scenes: title (plays once, then the menu theme), menu, newgame, map (the two map themes in turn), victory / defeat (once, then the menu theme).
 // Battle is laid over whatever is playing and lifted again afterwards.
-const ONE_SHOT = { title: 'title_e', victory: 'victory', defeat: 'defeat' };
+const ONE_SHOT = { title: ['title_e'], victory: ['victory_1', 'victory_2', 'victory_3'], defeat: ['defeat_1', 'defeat_2', 'defeat_3'] };
+const BATTLE = ['battle_1', 'battle_2', 'battle_3'];
 const LOOPS = {};
 // Playlists (Matt 22 Oct, Stable Audio 3 takes): each plays its pieces in turn, so nothing repeats back to back.
 const LISTS = { menu: ['title_e', 'epic_f', 'epic_g'], newgame: ['gather_h', 'gather_i'], map: ['epic_f', 'gather_h', 'epic_g', 'gather_i'] };
 const listIdx = { menu: 1, newgame: 0, map: 0 };
-const TITLES = { title_e: 'Rise of the Broken Crown', epic_f: 'Banners in the Storm', epic_g: 'The Iron Vale', gather_h: 'The Hosts Gather I', gather_i: 'The Hosts Gather II', pause_j: 'Before the Charge', gmenu_a: 'War Camp at Night I', gmenu_b: 'War Camp at Night II', pause_c: 'Quiet Before Dawn I', pause_d: 'Quiet Before Dawn II', title_ashes_to_crown: 'Ashes to Crown', menu: 'Menu theme', newgame: 'New game theme', map1: 'Roads of the Realm', map2: 'Map theme II', battle: 'Battle theme', victory: 'Victory', defeat: 'Defeat' };
+const TITLES = { battle_1: 'Clash of Hosts I', battle_2: 'Clash of Hosts II', battle_3: 'Clash of Hosts III', victory_1: 'Victory', victory_2: 'Victory', victory_3: 'Victory', defeat_1: 'Lament', defeat_2: 'Lament', defeat_3: 'Lament', title_e: 'Rise of the Broken Crown', epic_f: 'Banners in the Storm', epic_g: 'The Iron Vale', gather_h: 'The Hosts Gather I', gather_i: 'The Hosts Gather II', pause_j: 'Before the Charge', gmenu_a: 'War Camp at Night I', gmenu_b: 'War Camp at Night II', pause_c: 'Quiet Before Dawn I', pause_d: 'Quiet Before Dawn II', title_ashes_to_crown: 'Ashes to Crown', menu: 'Menu theme', newgame: 'New game theme', map1: 'Roads of the Realm', map2: 'Map theme II', battle: 'Battle theme', victory: 'Victory', defeat: 'Defeat' };
 let scene = null, base = null, over = null, mapIdx = 0, wanted = null, paused = false, nowPlaying = '';
 export const trackTitle = () => nowPlaying;
 
@@ -160,8 +161,8 @@ function fadeOut(tr, s = 1.2, kill = true) {
 function startBase(name, loop, onEnd) { const old = base; base = makeTrack(name, loop, onEnd); if (old) fadeOut(old, 1.4); if (base) { nowPlaying = TITLES[name] ?? name; if (!over && !paused) fadeIn(base, 1.8); } }
 function playScene(s) {
   if (quiet) { fadeOut(quiet, 1); quiet = null; } quietKind = null;
-  if (s === 'title') startBase(ONE_SHOT.title, false, () => setScene('menu'));
-  else if (s === 'victory' || s === 'defeat') startBase(ONE_SHOT[s], false, () => setScene('menu'));
+  if (s === 'title') startBase(pick(ONE_SHOT.title), false, () => setScene('menu'));
+  else if (s === 'victory' || s === 'defeat') startBase(pick(ONE_SHOT[s]), false, () => setScene('menu'));
   else if (LISTS[s]) { const list = LISTS[s]; const next = () => { if (scene !== s) return; listIdx[s] = (listIdx[s] + 1) % list.length; startBase(list[listIdx[s]], false, next); }; startBase(list[listIdx[s] % list.length], false, next); }
   else if (LOOPS[s]) startBase(LOOPS[s], true);
 }
@@ -185,7 +186,7 @@ export function setQuiet(kind) {
 }
 export function pushBattle() {
   if (!ctx || !unlocked || !optOn('music') || over) return; if (base) { const t = ctx.currentTime; base.g.gain.cancelScheduledValues(t); base.g.gain.setValueAtTime(Math.max(0.0001, base.g.gain.value), t); base.g.gain.linearRampToValueAtTime(0.0001, t + 1.0); const b = base; setTimeout(() => { if (over) b.el.pause(); }, 1100); }
-  over = makeTrack('battle', true); if (over) { nowPlaying = TITLES.battle; fadeIn(over, 1.2); }
+  over = makeTrack(pick(BATTLE), true); if (over) { nowPlaying = TITLES[over.name] ?? 'Battle'; fadeIn(over, 1.2); }
 }
 export function popBattle() {
   if (!ctx || !over) return; const o = over; over = null; fadeOut(o, 1.4);
