@@ -41,7 +41,7 @@ function skeleton() {
     ['Reports', [['The realms', () => D.openRealms()], ['Battle history', () => D.openHistory()]]],
     ['View', [['Full screen', () => toggleFullscreen(), '', 'F11'], '-', ['Zoom in', () => zoom(1.25), '', '+'], ['Zoom out', () => zoom(0.8), '', '−'], ['Whole map', () => S.view.fit()], ['Centre on selection', () => centreSel(), '', 'C'], ['Small map on/off', () => toggleMini(), '', 'M']]],
     ['Options', [['Options…', () => D.openOptions()]]],
-    ['Help', [['How to play', () => D.openHelp()]]]];
+    ['Help', [['How to play', () => D.openHelp()], ['Check for updates', () => import('./newgame.js').then((m) => m.checkUpdate(true))]]]];
   PHONE.menus = MENUS;
   const top = h('div', { id: 'top' }, ...MENUS.map(([t, items]) => menu(t, items)),
     h('span', { class: 'sp' }), fsButton('bar'), h('span', { class: 'turn', id: 'turnlbl' }), h('span', { class: 'realm', id: 'realmlbl' }));
@@ -64,7 +64,7 @@ function skeleton() {
         cmd('next', 'Next army', 'N', () => nextArmy(), 'cmdnext', 'Next'), cmd('fortify', 'Fortify', 'F', () => order('fortify'), 'cmdfort'), cmd('done', 'Done', 'D', () => order('done'), 'cmddone'), cmd('wake', 'Wake', 'W', () => order('wake'), 'cmdwake'),
         cmd('city', 'Open city', 'Enter', openHere, 'cmdcity', 'City'), cmd('list', 'Your cities', '', () => D.openCities(), 'cmdcities', 'Cities'), cmd('disband', 'Disband', 'Del', () => order('disband'), 'cmddisband'), cmd('centre', 'Centre', 'C', () => centreSel(), 'cmdcentre'),
         cmd('zoomin', 'Zoom in', '+', () => zoom(1.25), null, 'Zoom in', false), cmd('zoomout', 'Zoom out', '−', () => zoom(0.8), null, 'Zoom out', false), cmd('map', 'Whole map', 'M', () => S.view.fit(), 'cmdmap', 'Map'), cmd('scroll', 'Reports', '', () => D.openRealms(), 'cmdrep'),
-        cmd('hero', 'Hero', '', () => nextHero(), 'cmdhero'), cmd('ruin', 'Search', 'S', () => searchHere(), 'cmdsearch'), cmd('close', 'Deselect', 'Esc', () => deselect(), 'cmddesel'), cmd('search', 'Army info', 'I', () => { const a = selArmies(); if (a.length) armySheet(ownAt(S.sel.x, S.sel.y), a[0].id); else toast('Select an army first.'); }, 'cmdinfo', 'Info')),
+        cmd('hero', 'Hero', '', () => nextHero(), 'cmdhero'), cmd('ruin', 'Search', 'S', () => searchHere(), 'cmdsearch'), cmd('close', 'Deselect', 'Esc', () => deselect(), 'cmddesel'), cmd('search', 'Army info', 'I', () => { if (S.path?.attack && foesSeen(S.path.dest.x, S.path.dest.y)) return enemySheet(S.path.dest.x, S.path.dest.y); const a = selArmies(); if (a.length) armySheet(ownAt(S.sel.x, S.sel.y), a[0].id); else toast('Select an army first.'); }, 'cmdinfo', 'Info')),
       h('div', { id: 'panel' }),
       h('div', { id: 'events' }),
       h('div', { id: 'endwrap' }, h('div', { id: 'miniord' }, h('button', { class: 'btn sm', onclick: () => order('fortify') }, 'Fortify'), h('button', { class: 'btn sm', onclick: () => order('done') }, 'Done'), h('button', { class: 'btn sm', onclick: () => nextArmy() }, 'Next'), h('button', { class: 'btn sm', onclick: openHere }, 'City')),
@@ -103,7 +103,7 @@ export async function enterGame(g, { resume = false } = {}) {
   const cap = [...g.cities.values()].find((c) => c.owner === S.me) ?? [...g.cities.values()][0];
   const hero = [...g.armies.values()].find((a) => a.owner === S.me && a.x != null) ;
   view.fit(); const z0 = Math.max(0.9, view.cam.z); view.centerOn((hero ?? cap).x, (hero ?? cap).y, z0);
-  hooks.refresh = refresh; hooks.openCity = D.openCity; hooks.replayLessons = () => { closeAllModals(); CO.startLessons(coachApi()); };
+  hooks.refresh = refresh; hooks.openCity = D.openCity; view.describe = describeTile; hooks.replayLessons = () => { closeAllModals(); CO.startLessons(coachApi()); };
   $('#realmlbl').replaceChildren(crest(colorOf(S.me), 18), realmName(S.me));
   refresh(); hooks.ready?.();
   if (resume) { selectNextOnStart(); await offers(); await levelUps(); return; }
@@ -128,6 +128,7 @@ function coachApi() {
   };
 }
 function leaveGame() { document.body.classList.remove('ingame'); S.view?.destroy(); S.view = null; $('#game').classList.add('hidden'); closeAllModals(); S.g = null; }
+hooks.beforeUpdate = () => { if (S.g && !S.g.over && !S.busy) D.doAutosave(); };      // saved first, so an update never loses the turn
 hooks.toTitle = async () => { if (S.busy) { toast('The other realms are still playing. Wait a moment.'); return; } if (S.g && !S.g.over) D.doAutosave(); leaveGame(); const { showTitle } = await import('./newgame.js'); showTitle(); };
 hooks.loadSlot = (slot) => { S.goFull?.(); if (S.busy) { toast('The other realms are still playing. Wait a moment.'); return; } const r = E.loadFromSlot(D.saveStore, slot); if (!r.ok) { toast('That save could not be loaded: ' + r.reason.replaceAll('-', ' '), 'bad'); return; } hooks.loadGame(r.game); };
 hooks.loadGame = (game) => { closeAllModals(); S.view?.destroy(); enterGame(game, { resume: true }); };
@@ -288,11 +289,12 @@ function overNote() { toast('The war is over. Open the menu (☰) to start a new
 async function onTile(t, info) {
   const g = S.g; if (S.busy || !g || modalOpen()) return; if (warOver()) { overNote(); return; } if (t.x < 0 || t.y < 0 || t.x >= g.width || t.y >= g.height) return;
   // a tap on a city's name always opens that city (even where an army medal overlaps it); a tap on its castle counts as a tap on its square
-  const hit = S.view.cityHitAt?.(info.px, info.py);
-  const pin = hit?.kind === 'label' ? null : S.view.pinAt(info.px, info.py);
+  // the aiming magnifier names one exact square: no guessing from labels, medals or roads
+  const hit = info.aim ? null : S.view.cityHitAt?.(info.px, info.py);
+  const pin = info.aim || hit?.kind === 'label' ? null : S.view.pinAt(info.px, info.py);
   const ch = !pin ? hit : null;
   if (ch && ch.kind === 'label' && !info.hold) { const c = g.cities.get(ch.id); if (c && (c.owner === S.me || !E.fogOn(g) || E.visibleSet(g, S.me).has(E.tileIndex(g, c.x, c.y)))) { sfx('select'); return D.openCity(c.id); } }
-  const snap = !pin && !ch && S.sel && !E.cityAt(g, t.x, t.y) && !E.armiesAt(g, t.x, t.y).length ? S.view.roadSnap(info.px, info.py) : null;      // a tap beside the road means the road
+  const snap = !info.aim && !pin && !ch && S.sel && !E.cityAt(g, t.x, t.y) && !E.armiesAt(g, t.x, t.y).length ? S.view.roadSnap(info.px, info.py) : null;      // a tap beside the road means the road
   const tile = pin ?? (ch ? { x: ch.x, y: ch.y } : null) ?? snap ?? t; const x = tile.x, y = tile.y;
   const fogHidden = E.fogOn(g) && !E.isExplored(g, S.me, x, y); if (fogHidden && !S.sel) return;
   const city = E.cityAt(g, x, y); const own = ownAt(x, y); const now = performance.now(); const dbl = now - lastClick.t < 380 && lastClick.x === x && lastClick.y === y; lastClick = { t: now, x, y };
@@ -308,7 +310,7 @@ async function onTile(t, info) {
   if (own.length) {
     const canGo = S.sel && selArmies().some(movable);
     if (!canGo) { sfx('select'); selectStack(x, y); return; }      // nothing selected (or it cannot move): pick these armies
-    return preview(x, y);                                          // otherwise: march over and join them (hold to pick them instead)
+    return preview(x, y);                                          // otherwise: march over and join them
   }
   if (city && city.owner === S.me && !S.sel) return D.openCity(city.id);
   if (S.sel) return preview(x, y);
@@ -482,6 +484,19 @@ function renderEvents() {
     ...(notes.length ? notes.slice(0, 5).map((t) => h('div', { class: 'ev ' + tone(t) }, t)) : [h('div', { class: 'ev dim' }, 'Nothing new this turn.')]),
     h('div', { class: 'ef' }, h('img', { src: 'play/assets/ui/icons/flag.svg', alt: '' }), h('span', {}, idle ? `${idle} ${idle === 1 ? 'stack can' : 'stacks can'} still move` : 'Every army has its orders'), idle ? h('kbd', {}, 'N for the next') : null));
 }
+/** What the aiming magnifier says about a square: the city and whose it is, armies on it, a special place, or the ground. */
+/** Enemy armies on a square that the player can actually see. */
+function foesSeen(x, y) { const g = S.g; return E.armiesAt(g, x, y).some((a) => a.owner !== S.me) && (!E.fogOn(g) || E.visibleSet(g, S.me).has(E.tileIndex(g, x, y))); }
+function describeTile(t) {
+  const g = S.g; if (!g || t.x < 0 || t.y < 0 || t.x >= g.width || t.y >= g.height) return '';
+  if (E.fogOn(g) && !E.isExplored(g, S.me, t.x, t.y)) return 'Unexplored';
+  const vis = !E.fogOn(g) || E.visibleSet(g, S.me).has(E.tileIndex(g, t.x, t.y));
+  const c = E.cityAt(g, t.x, t.y); const own = ownAt(t.x, t.y).length; const foes = vis ? E.armiesAt(g, t.x, t.y).filter((a) => a.owner !== S.me).length : 0; const st = E.siteAt(g, t.x, t.y);
+  const where = c ? `${c.name}${c.razed ? ' (ruins)' : c.owner === S.me ? '' : c.owner ? ` · ${realmName(c.owner)}` : ' · free'}` : st && !st.explored ? ({ ruin: 'Ruin', temple: 'Temple', library: 'Library', tower: 'Mage Tower' }[st.kind] ?? 'Ruin') : tileName(t.x, t.y);
+  const bits = [where]; if (own) bits.push(`your ${plural(own, 'army', 'armies')}`); if (foes) bits.push(`${plural(foes, 'enemy', 'enemies')}`);
+  if (S.sel && S.sel.x === t.x && S.sel.y === t.y) bits.push('selected');
+  return bits.join(' · ');
+}
 function tileName(x, y) { const t = E.tileAt(S.g, x, y); return t.bridge ? 'On a bridge' : t.terrain === 'water' ? 'At sea' : ({ open: t.road ? 'On a road' : 'Open ground', woods: 'In the woods', hills: 'In the hills', mountain: 'In the mountains', swamp: 'In a swamp' }[t.terrain] ?? 'Open ground'); }
 function routeBox(p) {
   const g = S.g; const kids = [h('h4', {}, 'Route')];
@@ -577,7 +592,7 @@ function renderEnd() {
   const odds = S.path?.attack && S.path.odds && S.opts.odds && !S.path.odds.empty && !S.path.label.includes('%') ? ` · ${Math.round(S.path.odds.winChance * 100)}% to win` : '';
   const tapWord = PHONE.mode === 'desk' ? 'Click' : 'Tap';
   const inCity = S.sel && E.cityAt(S.g, S.sel.x, S.sel.y); const myCity = inCity && inCity.owner === S.me;
-  $('#msg').textContent = S.path ? `${S.path.attack ? '' : S.path.join ? '' : 'March: '}${S.path.label}${odds}. ${tapWord} the square again to confirm${S.path.join ? ' · hold to pick them instead' : S.path.attack ? ' · hold to see who is there' : ''}.` :
+  $('#msg').textContent = S.path ? `${S.path.attack ? '' : S.path.join ? '' : 'March: '}${S.path.label}${odds}. ${tapWord} the square again to confirm${S.path.join ? '' : S.path.attack ? ' · Info shows who is there' : ''}.` :
     S.sel && myCity ? `Selected: ${selArmies().length} ${selArmies().length === 1 ? 'army' : 'armies'} in ${inCity.name}. ${tapWord} them again to open the city.` : S.sel ? `Selected: ${selArmies().length} ${selArmies().length === 1 ? 'army' : 'armies'}${E.cityAt(S.g, S.sel.x, S.sel.y) ? ' in ' + E.cityAt(S.g, S.sel.x, S.sel.y).name : ''}.` : idle ? `${idle} ${idle === 1 ? 'army is' : 'armies are'} waiting for orders.` : 'Every army has its orders.';
 }
 

@@ -43,7 +43,7 @@ export class MapView {
     this.ghosts = []; this.hide = null; this.cityOverride = null; this.fx = []; this.medalCache = new Map(); this.castleCache = new Map(); this.t0 = performance.now(); this.dirty = true; this.minimap = null; this.showGrid = false;
     this.fogCv = document.createElement('canvas'); this.fogCv.width = g.width; this.fogCv.height = g.height; this.fogStamp = '';
     this.bind(); this.resize();
-    this.last = 0; const loop = (t) => { if (this.dead) return; if (this.dirty || ((this.sel || this.path) && t - this.last > 70)) { this.last = t; this.draw(); } requestAnimationFrame(loop); }; requestAnimationFrame(loop);
+    this.last = 0; const loop = (t) => { if (this.dead) return; if (this.dirty || ((this.sel || this.path) && t - this.last > 70)) { this.last = t; this.draw(); if (this.aimP) this.drawLoupe(); } requestAnimationFrame(loop); }; requestAnimationFrame(loop);
     this.warm();
   }
   // paint every chunk over time so scrolling never stalls
@@ -60,7 +60,7 @@ export class MapView {
   }
   invalidate() { this.dirty = true; }
   touch() { this.fogDirty = true; this.dirty = true; }
-  destroy() { this.dead = true; }
+  destroy() { this.dead = true; this.loupe?.el.remove(); }
   /** A city whose name (or castle) is under this point: { id, x, y, kind } (names win over castles). */
   cityHitAt(px, py) { const inR = (r) => px >= r[0] && px <= r[0] + r[2] && py >= r[1] && py <= r[1] + r[3]; const hs = this.cityHits ?? []; return hs.find((q) => q.kind === 'label' && inR(q.r)) ?? hs.find((q) => q.kind === 'castle' && inR(q.r)) ?? null; }
   pinAt(px, py) { let best = null, bd = Infinity; for (const s of this.stackPos ?? []) { if (s.px == null) continue; const d = Math.hypot(px - s.px, py - s.py); if (d <= s.D / 2 + 3 && d < bd) { bd = d; best = s; } } return best ? { x: best.x, y: best.y } : null; }      // the nearest medal wins where big medals overlap
@@ -72,24 +72,56 @@ export class MapView {
   }
   centerOn(x, y, z = null) { if (z) this.cam.z = z; this.cam.x = (x + 0.5) * TP - this.w / 2 / this.cam.z; this.cam.y = (y + 0.5) * TP - this.h / 2 / this.cam.z; this.clamp(); this.dirty = true; }
   fit() { this.cam.z = Math.min(this.w / (this.g.width * TP), this.h / (this.g.height * TP)); this.cam.x = this.cam.y = 0; this.clamp(); this.dirty = true; }
+  /** The aiming magnifier: a round window above the finger with the ground under it at twice the size, crosshairs on the exact point, and a label. */
+  aimAt(p) {
+    const SZ = 132, Z = 2.2, dpr = this.dpr || 1; if (!this.loupe) { const el = document.createElement('div'); el.className = 'loupe'; const c = document.createElement('canvas'); c.width = c.height = Math.round(SZ * dpr);
+      const lab = document.createElement('div'); lab.className = 'll'; el.append(c, Object.assign(document.createElement('i'), { className: 'xh' }), lab); document.body.append(el); this.loupe = { el, c, lab }; }
+    const r = this.cv.getBoundingClientRect(); const L = this.loupe; this.aimP = p;
+    let top = r.top + p.y - SZ - 58; if (top < 6) top = r.top + p.y + 58; const left = Math.max(6, Math.min(innerWidth - SZ - 6, r.left + p.x - SZ / 2));
+    Object.assign(L.el.style, { left: `${left}px`, top: `${top}px`, display: 'block' });
+    const t = this.toTile(p.x, p.y); if (!this.hover || this.hover.x !== t.x || this.hover.y !== t.y) { this.hover = t; this.dirty = true; try { if (this.aimTile) navigator.vibrate?.(4); } catch { /* none */ } }
+    this.aimTile = t; L.lab.textContent = this.describe?.(t) ?? ''; this.drawLoupe();
+  }
+  drawLoupe() {
+    const L = this.loupe, p = this.aimP; if (!L || !p) return; const dpr = this.dpr || 1, Z = 2.2, n = L.c.width, src = n / Z; const x = L.c.getContext('2d');
+    x.fillStyle = '#0b1320'; x.fillRect(0, 0, n, n); x.imageSmoothingEnabled = true; x.drawImage(this.cv, p.x * dpr - src / 2, p.y * dpr - src / 2, src, src, 0, 0, n, n);
+  }
+  aimEnd() { if (this.loupe) this.loupe.el.style.display = 'none'; this.aimP = null; this.aimTile = null; this.dirty = true; }
   toTile(sx, sy) { return { x: Math.floor((sx / this.cam.z + this.cam.x) / TP), y: Math.floor((sy / this.cam.z + this.cam.y) / TP) }; }
   toScreen(tx, ty) { return { x: (tx + 0.5) * TP * this.cam.z - this.cam.x * this.cam.z, y: (ty + 0.5) * TP * this.cam.z - this.cam.y * this.cam.z }; }
 
   bind() {
     const cv = this.cv; let drag = null; const pts = new Map(); let pinch = null;
     const pos = (e) => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
-    let holdT = 0;      // press and hold (half a second, without moving): a "hold" tap
-    cv.addEventListener('pointerdown', (e) => { cv.setPointerCapture(e.pointerId); const p = pos(e); pts.set(e.pointerId, p); clearTimeout(holdT);
-      if (pts.size === 1) { drag = { x0: p.x, y0: p.y, cx: this.cam.x, cy: this.cam.y, moved: false, button: e.button, held: false }; const d0 = drag;
-        holdT = setTimeout(() => { if (drag !== d0 || d0.moved || pts.size !== 1) return; d0.held = true; try { navigator.vibrate?.(15); } catch { /* no vibration */ } const t = this.toTile(p.x, p.y); this.onTile(t, { hold: true, px: p.x, py: p.y }); }, 500); }
-      else { drag = null; const [a, b] = [...pts.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), z: this.cam.z }; } });
+    // Touch rules (Matt 23 Oct: scrolling moved armies). A tap is short and still: under 18 px of travel (Flutter's touch slop, raised from 8
+    // after users missed taps) and under 350 ms; anything else only moves the map, and for a moment after a scroll or pinch no tap counts.
+    // Crowded spots (a castle, a city name or an army medal under the finger) get the aiming magnifier at once (the "Shift" technique,
+    // Vogel & Baudisch, CHI 2007, which escalates straight away for small targets): a zoomed copy of the ground with crosshairs above the
+    // finger. A quick tap there is still a normal tap; sliding aims, and lifting chooses the exact square under the crosshairs.
+    // Scroll by dragging from open ground (or with two fingers).
+    const SLOP = (e) => (e.pointerType === 'mouse' ? 6 : 18), TAP_MS = 350, QUIET_MS = 250, SHOW_MS = 90;
+    let showT = 0; this.quiet = 0;
+    const crowded = (p) => !!(this.pinAt(p.x, p.y) || this.cityHitAt?.(p.x, p.y));
+    cv.addEventListener('pointerdown', (e) => { cv.setPointerCapture(e.pointerId); const p = pos(e); pts.set(e.pointerId, p); clearTimeout(showT);
+      if (pts.size === 1) { drag = { x0: p.x, y0: p.y, cx: this.cam.x, cy: this.cam.y, moved: false, button: e.button, t0: performance.now(), slop: SLOP(e), crowd: e.button !== 2 && crowded(p) }; const d0 = drag;
+        if (d0.crowd) showT = setTimeout(() => { if (drag !== d0 || pts.size !== 1) return; d0.aim = d0.aim ?? { x: d0.x0, y: d0.y0 }; this.aimAt(d0.aim); }, SHOW_MS); }
+      else { if (drag?.aim) this.aimEnd(); drag = null; const [a, b] = [...pts.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), z: this.cam.z }; } });
     cv.addEventListener('pointermove', (e) => {
       const p = pos(e); if (pts.has(e.pointerId)) pts.set(e.pointerId, p);
-      if (pinch && pts.size === 2) { const [a, b] = [...pts.values()]; const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2; this.zoomAt(mx, my, pinch.z * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d, true); return; }
-      if (drag) { const dx = p.x - drag.x0, dy = p.y - drag.y0; if (Math.abs(dx) + Math.abs(dy) > (e.pointerType === "touch" ? 10 : 5)) drag.moved = true; if (drag.moved) { this.cam.x = drag.cx - dx / this.cam.z; this.cam.y = drag.cy - dy / this.cam.z; this.clamp(); this.dirty = true; } }
+      if (pinch && pts.size === 2) { const [a, b] = [...pts.values()]; const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2; this.zoomAt(mx, my, pinch.z * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d, true); this.quiet = performance.now() + QUIET_MS; return; }
+      if (drag?.crowd && pts.size === 1) { drag.aim = { x: p.x, y: p.y }; if (Math.hypot(p.x - drag.x0, p.y - drag.y0) > drag.slop) drag.slid = true; this.aimAt(drag.aim); return; }      // aiming: the map holds still
+      if (drag) { const dx = p.x - drag.x0, dy = p.y - drag.y0; if (Math.hypot(dx, dy) > drag.slop) drag.moved = true; if (drag.moved) { this.cam.x = drag.cx - dx / this.cam.z; this.cam.y = drag.cy - dy / this.cam.z; this.clamp(); this.dirty = true; this.quiet = performance.now() + QUIET_MS; } }
       const t = this.toTile(p.x, p.y); if (!this.hover || this.hover.x !== t.x || this.hover.y !== t.y) { this.hover = t; this.onHover(t); this.dirty = true; }
     });
-    const up = (e) => { const p = pos(e); pts.delete(e.pointerId); if (pts.size < 2) pinch = null; clearTimeout(holdT); if (drag && !drag.moved && !drag.held && e.type === 'pointerup') { const t = this.toTile(p.x, p.y); this.onTile(t, { right: drag.button === 2, shift: e.shiftKey, px: p.x, py: p.y }); } if (!pts.size) drag = null; };
+    const up = (e) => { const p = pos(e); pts.delete(e.pointerId); if (pts.size < 2) pinch = null; clearTimeout(showT); const now = performance.now();
+      if (drag?.crowd) {
+        const a = drag.aim ?? p; this.aimEnd();
+        if (e.type === 'pointerup' && now >= this.quiet) {
+          if (!drag.slid && (e.pointerType === 'mouse' || now - drag.t0 <= TAP_MS)) this.onTile(this.toTile(drag.x0, drag.y0), { right: drag.button === 2, px: drag.x0, py: drag.y0 });      // a quick tap: the usual forgiving tap
+          else if (a.x >= 0 && a.y >= 0 && a.x <= this.w && a.y <= this.h) this.onTile(this.toTile(a.x, a.y), { aim: true, px: a.x, py: a.y });                        // slid or held: the exact square
+        }
+      } else if (drag && !drag.moved && e.type === 'pointerup' && now >= this.quiet && (e.pointerType === 'mouse' || now - drag.t0 <= TAP_MS)) { const t = this.toTile(p.x, p.y); this.onTile(t, { right: drag.button === 2, shift: e.shiftKey, px: p.x, py: p.y }); }
+      if (!pts.size) { if (drag?.moved || pinch) this.quiet = now + QUIET_MS; drag = null; } };
     cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
     cv.addEventListener('contextmenu', (e) => e.preventDefault());
     cv.addEventListener('wheel', (e) => { e.preventDefault(); const p = pos(e); this.zoomAt(p.x, p.y, this.cam.z * Math.exp(-e.deltaY * 0.0014)); }, { passive: false });

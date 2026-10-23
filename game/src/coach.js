@@ -57,7 +57,7 @@ export const CHAPTERS = [
       ['ruin', 'Explore', 'Only heroes can search ruins, take quests and study.'],
       ['shield', 'Items', 'Treasures make a hero stronger. If the hero falls, they drop where the hero stood.'],
       ['hero', 'More heroes', 'Now and then a hero offers to join for gold. Say yes when you can.']],
-    tip: 'Tap Hero to jump straight to your hero. Press and hold any army to read what it is.' },
+    tip: 'Tap Hero to jump straight to your hero. Press and hold an army card at the bottom to read what it is.' },
   { id: 'places', mood: 'happy', icon: 'ruin', title: 'Places to explore', line: 'Ruins, temples, towers', img: 'play/assets/scenes/ruin.webp',
     lead: 'The old places of the realm hold gold, allies and secrets, for the brave.',
     places: [['ruin_columns', 'Ruins', 'Guarded. Your hero searches: gold, a treasure, a new ally, or a sage with choices. Heroes can die there, so bring company. Every army along raises the odds.'],
@@ -88,7 +88,7 @@ export const CHAPTERS = [
       ['menu', 'Menu', 'Save, load, options, this guide.'], ['full', 'Full screen', 'On by itself. Tap to turn it off.'], ['bell', 'News', 'What happened since your last turn.']] },
   { id: 'taps', icon: 'zoomin', title: 'Taps & gestures', line: 'Fingers on the map', img: null,
     gestures: [['Tap', 'Select your armies, or pick where to go.'], ['Tap again', 'Go. The same square twice confirms the move.'],
-      ['Press and hold', 'Read what an army is, or select a group without marching to it.'], ['Drag', 'Slide the map around.'],
+      ['Touch a castle or armies', 'A magnifier with crosshairs appears above your finger. Tap as usual, or slide onto the exact square and lift. Scroll by dragging from open ground.'], ['Press and hold an army card', 'Read what that army is.'], ['Drag open ground', 'Slide the map around (or use two fingers).'],
       ['Pinch', 'Zoom in and out. The + and − buttons do the same.'], ['Tap the small map', 'Jump anywhere. Drag on it to look around.']],
     keys: [['N / Space', 'Next army'], ['F · D · W', 'Fortify · Done · Wake'], ['Enter', 'Confirm route'], ['Esc', 'Cancel, then deselect'], ['E', 'End turn'], ['+ − arrows C', 'Zoom, scroll, centre'], ['M', 'Small map on or off']] },
 ];

@@ -34,7 +34,14 @@ async function backdrop(host) {
 }
 
 let titleShown = false;
+/** In a game: never refresh by surprise, just say a new version is out. */
+async function noteUpdate() { try { const r = await fetch(`play/version.json?t=${Date.now()}`, { cache: 'no-store' }); const v = r.ok ? (await r.json()).built : null; if (v && new Date(v) > new Date(__BUILT__)) toast('A new version is out. Open the menu and tap Check for updates (your game is saved first).'); } catch { /* offline */ } }
+let updWatch = false;
+function watchUpdates() { if (updWatch) return; updWatch = true;
+  document.addEventListener('visibilitychange', () => { if (document.hidden) return; if (!S.g) checkUpdate(); else noteUpdate(); });
+  setInterval(() => { if (!document.hidden && !S.g) checkUpdate(); }, 5 * 60 * 1000); }
 export async function showTitle() {
+  watchUpdates();
   setScene(titleShown ? 'menu' : 'title'); titleShown = true;
   stopTitleMap(); closeAllModals(); const t = root(); t.replaceChildren();
   const saves = E.listSaves(D.saveStore).filter((s) => !s.empty); const newest = saves.sort((a, b) => b.savedAt - a.savedAt)[0];
@@ -46,7 +53,7 @@ export async function showTitle() {
     h('div', { class: 'trow' }, h('button', { class: 'btn', onclick: () => D.openOptions() }, 'Options'), h('button', { class: 'btn', onclick: () => D.openHelp() }, 'How to play'), h('button', { class: 'btn', onclick: () => D.openCredits() }, 'Credits')));
   t.append(h('img', { class: 'tbg', src: 'play/assets/scenes/title.webp', alt: '' }), h('div', { class: 'tshade' }),
     h('div', { class: 'tleft' }, h('h1', {}, 'Heroes Quest'), h('div', { class: 'tag' }, 'A war for the crown of the broken land'), nav),
-    h('div', { class: 'built', id: 'tbuilt' }, builtText()), h('div', { class: 'small' }, D.persistent ? 'Early test build · your saves live in this browser · Created by Matt Shaffer · ' : 'This browser is not letting the game keep saves: they will be lost when you close the page. Use Save to a file. · ', h('a', { href: 'https://github.com/mshaffe1111/Heroes-Quest' }, 'the code is on GitHub')));
+    h('div', { class: 'built' }, h('span', { id: 'tbuilt' }, builtText()), h('button', { class: 'btn sm', id: 'tupd', onclick: () => checkUpdate(true) }, 'Check for updates')), h('div', { class: 'small' }, D.persistent ? 'Early test build · your saves live in this browser · Created by Matt Shaffer · ' : 'This browser is not letting the game keep saves: they will be lost when you close the page. Use Save to a file. · ', h('a', { href: 'https://github.com/mshaffe1111/Heroes-Quest' }, 'the code is on GitHub')));
   if (justUpdated()) toast('You are on the newest version.', 'good');
   checkUpdate();
 }
@@ -55,10 +62,11 @@ export async function showTitle() {
  * than this copy, say so and refresh onto it; the page asks for game.js with the build time on the end, so the refresh cannot reuse an old copy.
  * One automatic try per new version (a slow cache must not cause a refresh loop); after that a button does it.
  */
-async function checkUpdate() {
+export async function checkUpdate(manual = false) {
   try {
     const r = await fetch(`play/version.json?t=${Date.now()}`, { cache: 'no-store' }); if (!r.ok) return;
-    const v = (await r.json()).built; if (!v || v === __BUILT__ || !(new Date(v) > new Date(__BUILT__))) return;
+    const v = (await r.json()).built; if (!v || v === __BUILT__ || !(new Date(v) > new Date(__BUILT__))) { if (manual) toast('You have the newest version.', 'good'); return false; }
+    if (manual) { hooks.beforeUpdate?.(); toast('Updating to the newest version…'); setTimeout(() => location.replace(`${location.pathname}?v=${encodeURIComponent(v.replace(/[^0-9]/g, '').slice(0, 14))}`), 600); return true; }
     const go = () => location.replace(`${location.pathname}?v=${encodeURIComponent(v.replace(/[^0-9]/g, '').slice(0, 14))}`);
     const when = new Date(v).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
     const el = $('#tbuilt'); let tried = null; try { tried = sessionStorage.getItem('hq-upd'); } catch { /* private mode */ }
@@ -66,7 +74,7 @@ async function checkUpdate() {
       try { sessionStorage.setItem('hq-upd', v); } catch { /* private mode */ }
       el?.replaceChildren(h('b', { class: 'newver' }, `A new version is out (${when}). Updating…`)); setTimeout(go, 1400);
     } else el?.replaceChildren(h('b', { class: 'newver' }, `A new version is out (${when}).`), ' ', h('button', { class: 'btn sm pri', onclick: go }, 'Update now'));
-  } catch { /* offline: play what we have */ }
+  } catch { if (manual) toast('Could not reach the server. Check your connection and try again.', 'bad'); }
 }
 /** Straight after an update: say so once. */
 function justUpdated() { try { if (sessionStorage.getItem('hq-upd') === __BUILT__) { sessionStorage.setItem('hq-upd', 'shown'); return true; } } catch { /* private mode */ } return false; }
