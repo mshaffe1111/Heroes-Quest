@@ -8,7 +8,7 @@ const ic = (n) => h('img', { src: `play/assets/ui/icons/${n}.svg`, alt: '' });
 // ===== the guide =================================================================================================================
 // Every chapter: an icon, a picture, the advisor's one-line lead, points (icon, bold, plain text), and a tip.
 export const CHAPTERS = [
-  { id: 'goal', icon: 'trophy', title: 'The goal', line: 'How you win', img: 'play/assets/scenes/title.webp',
+  { id: 'goal', mood: 'happy', icon: 'trophy', title: 'The goal', line: 'How you win', img: 'play/assets/scenes/title.webp',
     lead: 'Hold more than half the cities on the map, my liege, and every other realm will lay down its arms.',
     points: [['city', 'Cities are everything', 'Each city pays you gold every turn and trains one kind of army.'],
       ['sword', 'Armies take cities', 'March onto an enemy city and beat whoever guards it. Then it is yours.'],
@@ -41,7 +41,7 @@ export const CHAPTERS = [
       ['heart', 'Healing', 'Wounded armies heal one pip a turn while they rest in your cities.'],
       ['people', 'Room', 'A city or a square holds 8 armies at most.']],
     tip: 'If your gold falls below zero, your cities stop building. Disband old, weak armies to save upkeep.' },
-  { id: 'fight', icon: 'sword', title: 'Fighting', line: 'Odds before you strike', img: 'play/assets/scenes/battle.webp',
+  { id: 'fight', mood: 'warn', icon: 'sword', title: 'Fighting', line: 'Odds before you strike', img: 'play/assets/scenes/battle.webp',
     lead: 'Never march blind into battle. Look at your chance first.',
     points: [['sword', 'Attack', 'Tap an enemy. The label shows your chance of winning. Tap again to attack.'],
       ['eye', 'Red ring', 'An enemy with a red ring is within reach this turn.'],
@@ -50,7 +50,7 @@ export const CHAPTERS = [
       ['hero', 'Heroes add strength', 'A hero raises every army in the same group.'],
       ['list', 'Fight order', 'Open the army card (Info) to choose who fights first.']],
     tip: 'Send a strong group together rather than armies one at a time. Bonuses count for the whole group.' },
-  { id: 'heroes', icon: 'crown', title: 'Heroes', line: 'Your queen on the board', img: 'play/assets/scenes/levelup.webp',
+  { id: 'heroes', mood: 'warn', icon: 'crown', title: 'Heroes', line: 'Your queen on the board', img: 'play/assets/scenes/levelup.webp',
     lead: 'Guard your hero well. Like the queen in chess, a hero is your strongest piece and your hardest to replace.',
     points: [['crown', 'Levels', 'Heroes gain experience from fights and quests, up to level 9.'],
       ['scroll', 'Abilities', 'Each new level lets you pick an ability, such as Siege Master or Ranger.'],
@@ -58,7 +58,7 @@ export const CHAPTERS = [
       ['shield', 'Items', 'Treasures make a hero stronger. If the hero falls, they drop where the hero stood.'],
       ['hero', 'More heroes', 'Now and then a hero offers to join for gold. Say yes when you can.']],
     tip: 'Tap Hero to jump straight to your hero. Press and hold any army to read what it is.' },
-  { id: 'places', icon: 'ruin', title: 'Places to explore', line: 'Ruins, temples, towers', img: 'play/assets/scenes/ruin.webp',
+  { id: 'places', mood: 'happy', icon: 'ruin', title: 'Places to explore', line: 'Ruins, temples, towers', img: 'play/assets/scenes/ruin.webp',
     lead: 'The old places of the realm hold gold, allies and secrets, for the brave.',
     places: [['ruin_columns', 'Ruins', 'Guarded. Your hero searches: gold, a treasure, a new ally, or a sage with choices. Heroes can die there, so bring company. Every army along raises the odds.'],
       ['temple', 'Temples', 'Every army that visits is blessed: +1 strength, once per temple. Priests may give your hero a quest.'],
@@ -72,7 +72,7 @@ export const CHAPTERS = [
       ['sword', 'Sack', 'More gold, but the city forgets one kind of army.'],
       ['disband', 'Raze', 'Burn it to the ground. Nobody can use it until it is rebuilt.']],
     tip: 'Occupy is usually best. A city pays every turn for the rest of the game.' },
-  { id: 'enemy', icon: 'eye', title: 'Enemy turns', line: 'Watch, quick or hidden', img: 'play/assets/scenes/quest.webp',
+  { id: 'enemy', mood: 'warn', icon: 'eye', title: 'Enemy turns', line: 'Watch, quick or hidden', img: 'play/assets/scenes/quest.webp',
     lead: 'While you rest, your rivals march. Keep an eye on them.',
     points: [['eye', 'Watch', 'The camera follows each enemy move. Fights with you open the battle window.'],
       ['fast', 'Quick or hidden', 'Change it in Options, or tap Skip while they move.'],
@@ -93,13 +93,14 @@ export const CHAPTERS = [
     keys: [['N / Space', 'Next army'], ['F · D · W', 'Fortify · Done · Wake'], ['Enter', 'Confirm route'], ['Esc', 'Cancel, then deselect'], ['E', 'End turn'], ['+ − arrows C', 'Zoom, scroll, centre'], ['M', 'Small map on or off']] },
 ];
 
-const portrait = (cls = '') => h('img', { class: 'adv-face ' + cls, src: ADVISOR.img, alt: ADVISOR.name });
+const FACE = { '': 'advisor', warn: 'advisor_warn', happy: 'advisor_happy' };
+const portrait = (cls = '', mood = '') => h('img', { class: 'adv-face ' + cls, src: `play/assets/ui/${FACE[mood] ?? 'advisor'}.webp`, alt: ADVISOR.name });
 
 function chapterPage(ch, i, go) {
   const body = [];
   if (ch.img) body.push(h('div', { class: 'gd-hero', style: { backgroundImage: `url(${ch.img})` } }, h('div', { class: 'gd-num' }, `Chapter ${i + 1}`), h('h3', {}, ch.title)));
   else body.push(h('div', { class: 'gd-plainhead' }, h('div', { class: 'gd-num' }, `Chapter ${i + 1}`), h('h3', {}, ch.title)));
-  if (ch.lead) body.push(h('div', { class: 'gd-lead' }, portrait('sm'), h('p', {}, h('q', {}, ch.lead), h('span', {}, `${ADVISOR.name}, ${ADVISOR.role}`))));
+  if (ch.lead) body.push(h('div', { class: 'gd-lead' }, portrait('sm', ch.mood ?? ''), h('p', {}, h('q', {}, ch.lead), h('span', {}, `${ADVISOR.name}, ${ADVISOR.role}`))));
   if (ch.points) body.push(h('div', { class: 'gd-points' }, ch.points.map(([i2, b, t]) => h('div', { class: 'gd-pt' }, h('span', { class: 'gi' }, ic(i2)), h('div', {}, h('b', {}, b), h('span', {}, t))))));
   if (ch.steps) body.push(h('ol', { class: 'gd-steps' }, ch.steps.map(([b, t], k) => h('li', {}, h('em', {}, String(k + 1)), h('div', {}, h('b', {}, b), h('span', {}, t))))));
   if (ch.places) body.push(h('div', { class: 'gd-places' }, ch.places.map(([img, b, t]) => h('div', { class: 'gd-place' }, h('img', { src: `play/assets/site/${img}.webp`, alt: '' }), h('div', {}, h('b', {}, b), h('span', {}, t))))));
@@ -144,7 +145,7 @@ export function coachSay({ text, title = null, mood = '', step = null, of = null
   coachHide();
   let r = null; if (target) { if (typeof target === 'function') r = target(); else { const b = target.getBoundingClientRect(); r = { x: b.left + b.width / 2, y: b.top + b.height / 2, w: b.width + 10, hgt: b.height + 10 }; } }
   const skip = onSkip ? h('button', { class: 'lnk', onclick: onSkip }, 'Skip') : null;
-  bubble = h('div', { class: `coach ${mood}${dock ? ' dock' : ''}`, role: 'status' }, portrait(),
+  bubble = h('div', { class: `coach ${mood}${dock ? ' dock' : ''}`, role: 'status' }, portrait('', mood),
     h('div', { class: 'cb' }, h('div', { class: 'who' }, h('b', {}, ADVISOR.name), h('span', { class: 'role' }, ` · ${ADVISOR.role}`), step != null ? h('span', { class: 'dots' }, Array.from({ length: of }, (_, k) => h('i', { class: k < step ? 'on' : k === step ? 'cur' : '' }))) : null, skip),
       title ? h('div', { class: 'ct' }, title) : null, h('p', {}, text),
       buttons.length ? h('div', { class: 'cbtn' }, ...buttons.map((b) => h('button', { class: 'btn sm' + (b.pri ? ' pri' : ''), onclick: b.fn }, b.label))) : null));
@@ -230,27 +231,27 @@ function tick() {
   else if (step === 'route') { const s = api.suggest(); say({ ...dots, text: `The bright outline is how far they can go this turn. Tap any square inside it to see the way there.${s ? ` Try the ${s.what}: ${s.why}` : ''}`, target: s ? () => api.tileAt(s.x, s.y) : null }); }
   else if (step === 'march') say({ ...dots, text: 'That line is the route, and the label says how long it takes. Tap the same square again to march. Tap anywhere else to choose again.', target: () => S.path ? api.tileAt(S.path.steps.at(-1).x, S.path.steps.at(-1).y) : null });
   else if (step === 'city') say({ ...dots, text: `Now ${cn}. A city should always be building something. Tap its name on the map to open it.`, target: () => city && api.cityLabel(city.id) });
-  else if (step === 'build') say({ ...dots, dock: true, text: city?.building ? 'Splendid. It will march out of the city when it is ready, and the next one starts by itself. Close the window when you are done.' : 'Choose an army and tap Build this. Cheap armies are ready in a turn or two; strong ones take longer.', target: city?.building ? '.back .frame > .x' : null });
+  else if (step === 'build') say({ ...dots, dock: true, mood: city?.building ? 'happy' : '', text: city?.building ? 'Splendid. It will march out of the city when it is ready, and the next one starts by itself. Close the window when you are done.' : 'Choose an army and tap Build this. Cheap armies are ready in a turn or two; strong ones take longer.', target: city?.building ? '.back .frame > .x' : null });
   else if (step === 'next') {
     if (api.waiting().length) say({ ...dots, text: 'Some armies still wait for orders. Tap Next to jump to each of them in turn.', target: '#cmdnext' });
     else say({ ...dots, text: 'When you have more armies, the Next button takes you to each one that still waits for orders.', target: '#cmdnext', buttons: [{ label: 'Got it', pri: true, fn: () => { L.nextSeen = true; L.shown = null; } }] });
   } else if (step === 'end') say({ ...dots, text: 'That is a whole turn. Tap End turn. The other realms move next; you can watch them, or tap Skip.', target: '#endbtn' });
-  else if (step === 'wrap') { stopLessons(true); say({ title: 'You know the rhythm', text: 'Armies, cities, End turn: that is the whole game, my liege. I will speak up when something new happens. The full guide is under Menu, How to play.', buttons: [{ label: 'Open the guide', fn: () => { coachHide(); api.openGuide(null); } }, { label: 'Got it', pri: true, fn: () => coachHide() }] }); }
+  else if (step === 'wrap') { stopLessons(true); say({ mood: 'happy', title: 'You know the rhythm', text: 'Armies, cities, End turn: that is the whole game, my liege. I will speak up when something new happens. The full guide is under Menu, How to play.', buttons: [{ label: 'Open the guide', fn: () => { coachHide(); api.openGuide(null); } }, { label: 'Got it', pri: true, fn: () => coachHide() }] }); }
 }
 
 // ===== one-time tips ===========================================================================================================
 // Shown the first time something happens, never again (Replay the lessons brings them back). Never during the lessons.
 export const TIPS = {
   'enemy-reach': { mood: 'warn', title: 'An enemy within reach', text: 'See the red ring? You can attack it this turn. Tap it once to see your chance of winning before you commit.', ch: 'fight' },
-  'free-city': { title: 'A free city', text: 'Light beige cities belong to no realm and are lightly guarded. Tap one to see your chance, then tap again to take it.', ch: 'goal' },
+  'free-city': { mood: 'happy', title: 'A free city', text: 'Light beige cities belong to no realm and are lightly guarded. Tap one to see your chance, then tap again to take it.', ch: 'goal' },
   'site-ruin': { title: 'A ruin nearby', text: 'Ruins hide gold, treasure and allies, but a guardian waits inside. Only heroes can search, and every army along raises the odds.', ch: 'places' },
   'site-temple': { title: 'A temple nearby', text: 'March in with your armies: every one is blessed with +1 strength, once per temple. The priests may give your hero a quest.', ch: 'places' },
   'site-library': { title: 'A library nearby', text: 'Bring your hero here to study once for experience.', ch: 'places' },
   'site-tower': { title: 'A Mage Tower nearby', text: 'For 200 gold the mages teach your hero one ability of three. It lasts all game.', ch: 'places' },
   battle: { title: 'Your first battle', text: 'Armies fight in pairs until one side is gone. A red cross marks the fallen. Wounds heal one pip a turn while armies rest in your cities.', ch: 'fight' },
-  capture: { title: 'The city is yours', text: 'Choose its fate. Occupy keeps it paying you every turn. Pillage and Sack take gold now. Raze burns it to the ground.', ch: 'capture', over: true },
-  levelup: { title: 'Your hero grew stronger', text: 'Pick one ability. It lasts all game, so choose what fits how you play.', ch: 'heroes', over: true },
-  'hero-offer': { title: 'A hero offers to join', text: 'Heroes come rarely. A second hero can explore and lead another army. Take one when you can afford it.', ch: 'heroes', over: true },
+  capture: { mood: 'happy', title: 'The city is yours', text: 'Choose its fate. Occupy keeps it paying you every turn. Pillage and Sack take gold now. Raze burns it to the ground.', ch: 'capture', over: true },
+  levelup: { mood: 'happy', title: 'Your hero grew stronger', text: 'Pick one ability. It lasts all game, so choose what fits how you play.', ch: 'heroes', over: true },
+  'hero-offer': { mood: 'happy', title: 'A hero offers to join', text: 'Heroes come rarely. A second hero can explore and lead another army. Take one when you can afford it.', ch: 'heroes', over: true },
   'enemy-turn': { title: 'Your rivals have moved', text: 'Anything important that happened is under the bell. In Options you can watch their moves, see them quickly, or hide them.', ch: 'enemy', target: '#pbell' },
   'low-gold': { mood: 'warn', title: 'Gold is running low', text: 'Your armies cost more each turn than your cities pay. Take more cities, or disband weak armies, before your cities stop building.', ch: 'cities' },
 };
