@@ -95,32 +95,26 @@ export class MapView {
     const pos = (e) => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
     // Touch rules (Matt 23 Oct: scrolling moved armies). A tap is short and still: under 18 px of travel (Flutter's touch slop, raised from 8
     // after users missed taps) and under 350 ms; anything else only moves the map, and for a moment after a scroll or pinch no tap counts.
-    // Crowded spots (a castle, a city name or an army medal under the finger) get the aiming magnifier at once (the "Shift" technique,
-    // Vogel & Baudisch, CHI 2007, which escalates straight away for small targets): a zoomed copy of the ground with crosshairs above the
-    // finger. A quick tap there is still a normal tap; sliding aims, and lifting chooses the exact square under the crosshairs.
-    // Scroll by dragging from open ground (or with two fingers).
-    const SLOP = (e) => (e.pointerType === 'mouse' ? 6 : 18), TAP_MS = 350, QUIET_MS = 250, SHOW_MS = 90;
-    let showT = 0; this.quiet = 0;
-    const crowded = (p) => !!(this.pinAt(p.x, p.y) || this.cityHitAt?.(p.x, p.y));
-    cv.addEventListener('pointerdown', (e) => { cv.setPointerCapture(e.pointerId); const p = pos(e); pts.set(e.pointerId, p); clearTimeout(showT);
-      if (pts.size === 1) { drag = { x0: p.x, y0: p.y, cx: this.cam.x, cy: this.cam.y, moved: false, button: e.button, t0: performance.now(), slop: SLOP(e), crowd: e.button !== 2 && crowded(p) }; const d0 = drag;
-        if (d0.crowd) showT = setTimeout(() => { if (drag !== d0 || pts.size !== 1) return; d0.aim = d0.aim ?? { x: d0.x0, y: d0.y0 }; this.aimAt(d0.aim); }, SHOW_MS); }
+    // Press and hold depends on the Aiming magnifier option (on for phones by default):
+    //   on   hold 0.3 s: a magnifier with crosshairs above the finger (the "Shift" technique, Vogel & Baudisch, CHI 2007); slide to aim, lift to choose
+    //   off  hold 0.5 s: the classic hold (select the armies there without marching, open your city, or show an enemy stack)
+    const SLOP = (e) => (e.pointerType === 'mouse' ? 6 : 18), TAP_MS = 350, QUIET_MS = 250;
+    let holdT = 0; this.quiet = 0;
+    cv.addEventListener('pointerdown', (e) => { cv.setPointerCapture(e.pointerId); const p = pos(e); pts.set(e.pointerId, p); clearTimeout(holdT);
+      if (pts.size === 1) { const aimOn = !!this.aimMode?.(); drag = { x0: p.x, y0: p.y, cx: this.cam.x, cy: this.cam.y, moved: false, button: e.button, held: false, t0: performance.now(), slop: SLOP(e) }; const d0 = drag;
+        if (e.button !== 2) holdT = setTimeout(() => { if (drag !== d0 || d0.moved || pts.size !== 1) return; d0.held = true; try { navigator.vibrate?.(15); } catch { /* no vibration */ }
+          if (aimOn) { d0.aim = { x: d0.x0, y: d0.y0 }; this.aimAt(d0.aim); } else { const t = this.toTile(p.x, p.y); this.onTile(t, { hold: true, px: p.x, py: p.y }); } }, aimOn ? 300 : 500); }
       else { if (drag?.aim) this.aimEnd(); drag = null; const [a, b] = [...pts.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), z: this.cam.z }; } });
     cv.addEventListener('pointermove', (e) => {
       const p = pos(e); if (pts.has(e.pointerId)) pts.set(e.pointerId, p);
       if (pinch && pts.size === 2) { const [a, b] = [...pts.values()]; const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2; this.zoomAt(mx, my, pinch.z * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d, true); this.quiet = performance.now() + QUIET_MS; return; }
-      if (drag?.crowd && pts.size === 1) { drag.aim = { x: p.x, y: p.y }; if (Math.hypot(p.x - drag.x0, p.y - drag.y0) > drag.slop) drag.slid = true; this.aimAt(drag.aim); return; }      // aiming: the map holds still
-      if (drag) { const dx = p.x - drag.x0, dy = p.y - drag.y0; if (Math.hypot(dx, dy) > drag.slop) drag.moved = true; if (drag.moved) { this.cam.x = drag.cx - dx / this.cam.z; this.cam.y = drag.cy - dy / this.cam.z; this.clamp(); this.dirty = true; this.quiet = performance.now() + QUIET_MS; } }
+      if (drag?.aim) { drag.aim = { x: p.x, y: p.y }; this.aimAt(drag.aim); return; }      // aiming: the map holds still under the magnifier
+      if (drag && !drag.held) { const dx = p.x - drag.x0, dy = p.y - drag.y0; if (Math.hypot(dx, dy) > drag.slop) { drag.moved = true; clearTimeout(holdT); } if (drag.moved) { this.cam.x = drag.cx - dx / this.cam.z; this.cam.y = drag.cy - dy / this.cam.z; this.clamp(); this.dirty = true; this.quiet = performance.now() + QUIET_MS; } }
       const t = this.toTile(p.x, p.y); if (!this.hover || this.hover.x !== t.x || this.hover.y !== t.y) { this.hover = t; this.onHover(t); this.dirty = true; }
     });
-    const up = (e) => { const p = pos(e); pts.delete(e.pointerId); if (pts.size < 2) pinch = null; clearTimeout(showT); const now = performance.now();
-      if (drag?.crowd) {
-        const a = drag.aim ?? p; this.aimEnd();
-        if (e.type === 'pointerup' && now >= this.quiet) {
-          if (!drag.slid && (e.pointerType === 'mouse' || now - drag.t0 <= TAP_MS)) this.onTile(this.toTile(drag.x0, drag.y0), { right: drag.button === 2, px: drag.x0, py: drag.y0 });      // a quick tap: the usual forgiving tap
-          else if (a.x >= 0 && a.y >= 0 && a.x <= this.w && a.y <= this.h) this.onTile(this.toTile(a.x, a.y), { aim: true, px: a.x, py: a.y });                        // slid or held: the exact square
-        }
-      } else if (drag && !drag.moved && e.type === 'pointerup' && now >= this.quiet && (e.pointerType === 'mouse' || now - drag.t0 <= TAP_MS)) { const t = this.toTile(p.x, p.y); this.onTile(t, { right: drag.button === 2, shift: e.shiftKey, px: p.x, py: p.y }); }
+    const up = (e) => { const p = pos(e); pts.delete(e.pointerId); if (pts.size < 2) pinch = null; clearTimeout(holdT); const now = performance.now();
+      if (drag?.aim) { const a = drag.aim; this.aimEnd(); if (e.type === 'pointerup' && a.x >= 0 && a.y >= 0 && a.x <= this.w && a.y <= this.h) this.onTile(this.toTile(a.x, a.y), { aim: true, px: a.x, py: a.y }); }
+      else if (drag && !drag.moved && !drag.held && e.type === 'pointerup' && now >= this.quiet && (e.pointerType === 'mouse' || now - drag.t0 <= TAP_MS)) { const t = this.toTile(p.x, p.y); this.onTile(t, { right: drag.button === 2, shift: e.shiftKey, px: p.x, py: p.y }); }
       if (!pts.size) { if (drag?.moved || pinch) this.quiet = now + QUIET_MS; drag = null; } };
     cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
     cv.addEventListener('contextmenu', (e) => e.preventDefault());

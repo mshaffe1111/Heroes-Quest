@@ -4,7 +4,7 @@ import { generateMap } from '../../engine/src/mapgen/index.js';
 import { S, hooks } from './state.js';
 import { MapView, realmHex, medalURL } from './view.js';
 import { Painter, TP, CH } from './paint.js';
-import { h, $, crest, REALM_LOOK, toast, closeAllModals, sleep, modalOpen, topModal } from './ui.js';
+import { h, $, crest, REALM_LOOK, toast, closeAllModals, sleep, modalOpen, topModal, aimDefault } from './ui.js';
 import { newGame, enterGame, SIZES } from './game.js';
 import * as D from './dialogs.js';
 import { setScene } from './audio.js';
@@ -86,7 +86,7 @@ function agoText(t) { if (!t) return ''; const m = Math.round((Date.now() - t) /
 export function showWizard() {
   setScene('newgame');
   stopTitleMap(); const t = root(); t.replaceChildren();
-  const st = { step: 1, realm: 'verdant', heroName: '', shape: 'continent', cities: 60, seed: 1000 + Math.floor(Math.random() * 9000), difficulty: 'medium', fog: false, classic: false, rivals: 7, unsworn: 'strong' };
+  const st = { step: 1, realm: 'verdant', heroName: '', shape: 'continent', cities: 60, seed: 1000 + Math.floor(Math.random() * 9000), difficulty: 'medium', fog: false, classic: false, rivals: 7, unsworn: 'strong', aim: S.opts.aim ?? aimDefault() };
   const names = ['Realm', 'Hero', 'World', 'Rivals', 'Difficulty']; const ids = ['ivory', 'gold', 'ember', 'crimson', 'verdant', 'azure', 'tidewatch', 'ashen']; const colors = ['white', 'gold', 'orange', 'red', 'green', 'blue', 'cyan', 'black'];
   const wiz = h('div', { class: 'wiz' }); t.append(wiz);
   // the rivals: the other realms in an order fixed by the map number, so the same map number always brings the same rivals
@@ -135,7 +135,8 @@ export function showWizard() {
       const tog = (key, title, text) => { const b = h('button', { class: 'sw' + (st[key] ? ' on' : ''), onclick: () => { st[key] = !st[key]; b.classList.toggle('on', st[key]); } }); return h('div', { class: 'toggle' }, h('div', {}, h('b', {}, title), h('span', {}, text)), b); };
       body = h('div', { style: { maxWidth: '900px', margin: '0 auto' } }, h('div', { class: 'opts', style: { gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))' } }, DIFFS.map(([k, n, d]) => h('button', { class: 'opt' + (st.difficulty === k ? ' on' : ''), onclick: () => { st.difficulty = k; draw(); } }, h('b', {}, n), h('span', {}, d)))),
         h('div', { class: 'sec' }, 'Rules'), tog('fog', 'Fog of war', 'The map starts covered and clears as you explore. Enemies and who owns a city show only when your armies and cities are near. The computer plays by the same rules.'),
-        tog('classic', 'Classic rules', 'Classic two-hit duels: every army dies after two hits, no lasting wounds, no counters, no doctrines of rank. Leave this off for the full Heroes Quest.'));
+        tog('classic', 'Classic rules', 'Classic two-hit duels: every army dies after two hits, no lasting wounds, no counters, no doctrines of rank. Leave this off for the full Heroes Quest.'),
+        h('div', { class: 'sec' }, 'Controls'), tog('aim', 'Aiming magnifier', 'Press and hold the map to bring up a magnifier with crosshairs, then slide onto the exact square and lift. Best on phones; you can change it later in Options.'));
     }
     const foot = h('div', { class: 'foot' }, h('button', { class: 'btn', onclick: () => (st.step === 1 ? showTitle() : (st.step--, draw())) }, st.step === 1 ? 'Back' : 'Back'),
       st.step < 5 ? h('button', { class: 'btn pri big', onclick: () => { st.step++; draw(); } }, `Next: ${['', 'your hero', 'the world', 'your rivals', 'difficulty'][st.step]}`) : h('button', { class: 'btn pri big', onclick: () => begin() }, 'Begin the war'));
@@ -169,6 +170,7 @@ export function showWizard() {
   async function begin() {
     S.goFull?.();      // straight from the tap, while the browser still allows it
     const ov = h('div', { class: 'load paint' }, h('div', { class: 'lt' }, 'Painting the world'), h('div', { class: 'ls' }, `${SHAPES.find((x) => x[0] === st.shape)?.[1] ?? ''} · map ${st.seed} · ${st.cities} cities`), h('div', { class: 'lb' }, h('i', { style: { width: '35%', transition: 'width 2s' } })), h('div', { class: 'tip' }, TIPS[st.seed % TIPS.length])); $('#app').append(ov); await sleep(60);
+    S.opts.aim = !!st.aim; try { localStorage.setItem('hq-opts', JSON.stringify(S.opts)); } catch { /* private mode */ }      // the wizard's Controls choice is the Options setting
     try { const g = newGame({ realm: st.realm, heroName: st.heroName || HERO_NAMES[(st.seed + ids.indexOf(st.realm)) % HERO_NAMES.length], shape: st.shape, cities: st.cities, seed: st.seed, difficulty: st.difficulty, fog: st.fog, classic: st.classic, portrait: st.portrait, realmIds: realmIds(), neutrals: st.unsworn });
       ov.querySelector('i').style.width = '90%'; await sleep(30); stopTitleMap(); hooks.ready = () => ov.remove(); await enterGame(g); } catch (e) { console.error(e); toast('The world could not be made: ' + e.message, 'bad'); } ov.remove(); hooks.ready = null;
   }

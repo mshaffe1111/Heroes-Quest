@@ -3,7 +3,8 @@ import * as E from '../../engine/src/index.js';
 import { generateMap } from '../../engine/src/mapgen/index.js';
 import { S, hooks, theRealm, medalImg, realmOf, colorOf, unitName, realmName, myCities, economy, unitLine } from './state.js';
 import { MapView, loadAssets, realmHex } from './view.js';
-import { h, $, $$, toast, sleep, openModal, frame, closeAllModals, modalOpen, topModal, crest, num, confirmBox, plural, toggleFullscreen, fsButton } from './ui.js';
+import { h, $, $$, toast, sleep, openModal, frame, closeAllModals, modalOpen, topModal, crest, num, confirmBox, plural, toggleFullscreen, fsButton, aimDefault } from './ui.js';
+export const aimOn = () => S.opts.aim ?? aimDefault();
 import * as D from './dialogs.js';
 import { TP } from './paint.js';
 import { initAudio, sfx, stepSound, setScene, setQuiet, quietNow } from './audio.js';
@@ -103,7 +104,7 @@ export async function enterGame(g, { resume = false } = {}) {
   const cap = [...g.cities.values()].find((c) => c.owner === S.me) ?? [...g.cities.values()][0];
   const hero = [...g.armies.values()].find((a) => a.owner === S.me && a.x != null) ;
   view.fit(); const z0 = Math.max(0.9, view.cam.z); view.centerOn((hero ?? cap).x, (hero ?? cap).y, z0);
-  hooks.refresh = refresh; hooks.openCity = D.openCity; view.describe = describeTile; hooks.replayLessons = () => { closeAllModals(); CO.startLessons(coachApi()); };
+  hooks.refresh = refresh; hooks.openCity = D.openCity; view.describe = describeTile; view.aimMode = aimOn; hooks.replayLessons = () => { closeAllModals(); CO.startLessons(coachApi()); };
   $('#realmlbl').replaceChildren(crest(colorOf(S.me), 18), realmName(S.me));
   refresh(); hooks.ready?.();
   if (resume) { selectNextOnStart(); await offers(); await levelUps(); return; }
@@ -300,7 +301,8 @@ async function onTile(t, info) {
   const city = E.cityAt(g, x, y); const own = ownAt(x, y); const now = performance.now(); const dbl = now - lastClick.t < 380 && lastClick.x === x && lastClick.y === y; lastClick = { t: now, x, y };
   // press and hold: select the armies there (or open your city if none stand in it)
   const foes = E.armiesAt(g, x, y).filter((a) => a.owner !== S.me); const seeFoes = foes.length && (!E.fogOn(g) || E.visibleSet(g, S.me).has(E.tileIndex(g, x, y)));
-  if (info.hold) { if (own.length) { sfx('select'); selectStack(x, y); } else if (seeFoes) enemySheet(x, y); else if (city && city.owner === S.me) D.openCity(city.id); return; }
+  if (info.aim) setTimeout(() => CO.tipOnce('aim', { openGuide: (ch) => D.openHelp(ch) }), 600);
+  if (info.hold) { setTimeout(() => CO.tipOnce('aim-off', { openGuide: (ch) => D.openHelp(ch) }), 600); if (own.length) { sfx('select'); selectStack(x, y); } else if (seeFoes) enemySheet(x, y); else if (city && city.owner === S.me) D.openCity(city.id); return; }
   if (info.right && S.sel) return preview(x, y);
   if (S.path && S.path.dest.x === x && S.path.dest.y === y) return execute();
   const onSel = S.sel && S.sel.x === x && S.sel.y === y;
@@ -310,7 +312,7 @@ async function onTile(t, info) {
   if (own.length) {
     const canGo = S.sel && selArmies().some(movable);
     if (!canGo) { sfx('select'); selectStack(x, y); return; }      // nothing selected (or it cannot move): pick these armies
-    return preview(x, y);                                          // otherwise: march over and join them
+    return preview(x, y);                                          // otherwise: march over and join them (with the magnifier off, hold picks them instead)
   }
   if (city && city.owner === S.me && !S.sel) return D.openCity(city.id);
   if (S.sel) return preview(x, y);
@@ -592,7 +594,7 @@ function renderEnd() {
   const odds = S.path?.attack && S.path.odds && S.opts.odds && !S.path.odds.empty && !S.path.label.includes('%') ? ` · ${Math.round(S.path.odds.winChance * 100)}% to win` : '';
   const tapWord = PHONE.mode === 'desk' ? 'Click' : 'Tap';
   const inCity = S.sel && E.cityAt(S.g, S.sel.x, S.sel.y); const myCity = inCity && inCity.owner === S.me;
-  $('#msg').textContent = S.path ? `${S.path.attack ? '' : S.path.join ? '' : 'March: '}${S.path.label}${odds}. ${tapWord} the square again to confirm${S.path.join ? '' : S.path.attack ? ' · Info shows who is there' : ''}.` :
+  $('#msg').textContent = S.path ? `${S.path.attack ? '' : S.path.join ? '' : 'March: '}${S.path.label}${odds}. ${tapWord} the square again to confirm${S.path.join ? (aimOn() ? '' : ' · hold to pick them instead') : S.path.attack ? (aimOn() ? ' · Info shows who is there' : ' · hold to see who is there') : ''}.` :
     S.sel && myCity ? `Selected: ${selArmies().length} ${selArmies().length === 1 ? 'army' : 'armies'} in ${inCity.name}. ${tapWord} them again to open the city.` : S.sel ? `Selected: ${selArmies().length} ${selArmies().length === 1 ? 'army' : 'armies'}${E.cityAt(S.g, S.sel.x, S.sel.y) ? ' in ' + E.cityAt(S.g, S.sel.x, S.sel.y).name : ''}.` : idle ? `${idle} ${idle === 1 ? 'army is' : 'armies are'} waiting for orders.` : 'Every army has its orders.';
 }
 

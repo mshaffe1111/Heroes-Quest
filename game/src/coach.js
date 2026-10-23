@@ -88,7 +88,7 @@ export const CHAPTERS = [
       ['menu', 'Menu', 'Save, load, options, this guide.'], ['full', 'Full screen', 'On by itself. Tap to turn it off.'], ['bell', 'News', 'What happened since your last turn.']] },
   { id: 'taps', icon: 'zoomin', title: 'Taps & gestures', line: 'Fingers on the map', img: null,
     gestures: [['Tap', 'Select your armies, or pick where to go.'], ['Tap again', 'Go. The same square twice confirms the move.'],
-      ['Touch a castle or armies', 'A magnifier with crosshairs appears above your finger. Tap as usual, or slide onto the exact square and lift. Scroll by dragging from open ground.'], ['Press and hold an army card', 'Read what that army is.'], ['Drag open ground', 'Slide the map around (or use two fingers).'],
+      ['Press and hold (Aiming magnifier on)', 'A magnifier with crosshairs appears above your finger. Slide onto the exact square and lift to choose it. Best for crowded castles. It starts on for phones; switch it in Options.'], ['Press and hold (magnifier off)', 'Select the armies there without marching to them, open your own city, or see an enemy stack.'], ['Press and hold an army card', 'Read what that army is.'], ['Drag', 'Slide the map around. Scrolling never moves your armies.'],
       ['Pinch', 'Zoom in and out. The + and − buttons do the same.'], ['Tap the small map', 'Jump anywhere. Drag on it to look around.']],
     keys: [['N / Space', 'Next army'], ['F · D · W', 'Fortify · Done · Wake'], ['Enter', 'Confirm route'], ['Esc', 'Cancel, then deselect'], ['E', 'End turn'], ['+ − arrows C', 'Zoom, scroll, centre'], ['M', 'Small map on or off']] },
 ];
@@ -253,6 +253,8 @@ export const TIPS = {
   levelup: { mood: 'happy', title: 'Your hero grew stronger', text: 'Pick one ability. It lasts all game, so choose what fits how you play.', ch: 'heroes', over: true },
   'hero-offer': { mood: 'happy', title: 'A hero offers to join', text: 'Heroes come rarely. A second hero can explore and lead another army. Take one when you can afford it.', ch: 'heroes', over: true },
   'enemy-turn': { title: 'Your rivals have moved', text: 'Anything important that happened is under the bell. In Options you can watch their moves, see them quickly, or hide them.', ch: 'enemy', target: '#pbell' },
+  aim: { title: 'The aiming magnifier', text: 'Hold anywhere on the map, slide onto the exact square, and lift. Quick taps work as usual. You can switch the magnifier off in Options.', ch: 'taps' },
+  'aim-off': { title: 'Press and hold', text: 'Holding picks the armies there without marching to them. On a small phone, try the Aiming magnifier in Options: hold, slide onto the exact square, and lift.', ch: 'taps' },
   'low-gold': { mood: 'warn', title: 'Gold is running low', text: 'Your armies cost more each turn than your cities pay. Take more cities, or disband weak armies, before your cities stop building.', ch: 'cities' },
 };
 let tipOpen = null;

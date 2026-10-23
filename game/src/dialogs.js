@@ -2,7 +2,7 @@
 import { openGuide, resetLessons } from './coach.js';
 import * as E from '../../engine/src/index.js';
 import { S, hooks, theRealm, medalImg, realmOf, colorOf, unitName, realmName, myCities, economy, unitLine } from './state.js';
-import { h, frame, openModal, closeAllModals, toast, confirmBox, crest, num, sleep, esc, REALM_LOOK, plural } from './ui.js';
+import { h, frame, openModal, closeAllModals, toast, confirmBox, crest, num, sleep, esc, REALM_LOOK, plural, aimDefault } from './ui.js';
 import { realmHex } from './view.js';
 import { sfx, syncMusic, pushBattle, popBattle, setScene, testSound, skipTrack, trackTitle, applyOptions as applyVolumes } from './audio.js';
 
@@ -198,6 +198,7 @@ export function openHelp(at = null) {
 }
 export const DEFAULT_OPTS = { odds: true, autoNext: true, sound: true, music: true, replay: true, follow: true, moveSpeed: 60, musicVol: 70, fxVol: 85, quietHidden: true, confirmEnd: true, enemyMode: 'watch' };
 export function openOptions() {
+  if (S.opts.aim === undefined) S.opts.aim = aimDefault();      // show the device default as the switch's state
   let m; const save = () => { try { localStorage.setItem('hq-opts', JSON.stringify(S.opts)); } catch { /* private mode */ } syncMusic(); hooks.refresh?.(); };
   const sw = (key, extra) => { const b = h('button', { class: 'sw' + (S.opts[key] !== false ? ' on' : ''), role: 'switch', 'aria-checked': String(S.opts[key] !== false), onclick: () => { S.opts[key] = S.opts[key] === false ? true : !S.opts[key]; b.classList.toggle('on', S.opts[key] !== false); b.setAttribute('aria-checked', String(S.opts[key] !== false)); extra?.(); save(); } }); return b; };
   const row = (title, text, ...ctl) => h('div', { class: 'toggle' }, h('div', {}, h('b', {}, title), h('span', {}, text)), ...ctl);
@@ -213,6 +214,7 @@ export function openOptions() {
     row('Quiet when you switch tabs', 'Pauses music and effects while the game is in the background.', sw('quietHidden')),
     h('div', { class: 'eyebrow', style: { margin: '14px 0 6px' } }, 'Game flow'),
     row('Enemy turns', 'Every enemy army moves in turn while the camera follows it. Tap to skip an army, or skip the rest.', h('div', { class: 'segs' }, modeBtns)),
+    row('Aiming magnifier', 'Press and hold the map to bring up a magnifier with crosshairs; slide onto the exact square and lift. Best on phones. Off: holding picks armies without marching.', sw('aim')),
     row('Keep full screen', 'The game fills the whole screen and goes back to full screen whenever the phone drops out of it. The full-screen button at the top turns this off and on.', sw('autoFull')),
     row('Camera follows armies', 'Centres the map on each army as it moves, on your turn and theirs.', sw('follow')), h('div', { class: 'sub2' }, slider('moveSpeed', 'Movement speed', save)),
     row('Combat advisor', 'Show your chance of winning when you point an army at an enemy.', sw('odds')),

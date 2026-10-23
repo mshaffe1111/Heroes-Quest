@@ -67,6 +67,8 @@ export function confirmBox({ title, text, ok = 'Yes', cancel = 'Cancel', danger 
       h('div', { class: 'foot' }, h('button', { class: 'btn', onclick: () => done(false) }, cancel), h('button', { class: 'btn pri' + (danger ? '' : ''), onclick: () => done(true) }, ok))], { width: 480 }), { onClose: () => res(false) });
   });
 }
+/** Aiming magnifier (Matt 23 Oct): an option. Starts on for phones (touch screen, short side under 600 px), off for tablets and computers. */
+export const aimDefault = () => { try { return matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 600; } catch { return false; } };
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ---- full screen -------------------------------------------------------------------------------------------------------
