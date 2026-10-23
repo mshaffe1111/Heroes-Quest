@@ -138,9 +138,12 @@ export function testSound() { sfx('click'); setTimeout(() => sfx('clash', true),
 // ---- the music ------------------------------------------------------------------------------------------------------
 // Scenes: title (plays once, then the menu theme), menu, newgame, map (the two map themes in turn), victory / defeat (once, then the menu theme).
 // Battle is laid over whatever is playing and lifted again afterwards.
-const ONE_SHOT = { title: 'title_ashes_to_crown', victory: 'victory', defeat: 'defeat' };
-const LOOPS = { menu: 'menu', newgame: 'newgame' };
-const TITLES = { gmenu_a: 'War Camp at Night I', gmenu_b: 'War Camp at Night II', pause_c: 'Quiet Before Dawn I', pause_d: 'Quiet Before Dawn II', title_ashes_to_crown: 'Ashes to Crown', menu: 'Menu theme', newgame: 'New game theme', map1: 'Roads of the Realm', map2: 'Map theme II', battle: 'Battle theme', victory: 'Victory', defeat: 'Defeat' };
+const ONE_SHOT = { title: 'title_e', victory: 'victory', defeat: 'defeat' };
+const LOOPS = {};
+// Playlists (Matt 22 Oct, Stable Audio 3 takes): each plays its pieces in turn, so nothing repeats back to back.
+const LISTS = { menu: ['title_e', 'epic_f', 'epic_g'], newgame: ['gather_h', 'gather_i'], map: ['epic_f', 'gather_h', 'epic_g', 'gather_i'] };
+const listIdx = { menu: 1, newgame: 0, map: 0 };
+const TITLES = { title_e: 'Rise of the Broken Crown', epic_f: 'Banners in the Storm', epic_g: 'The Iron Vale', gather_h: 'The Hosts Gather I', gather_i: 'The Hosts Gather II', pause_j: 'Before the Charge', gmenu_a: 'War Camp at Night I', gmenu_b: 'War Camp at Night II', pause_c: 'Quiet Before Dawn I', pause_d: 'Quiet Before Dawn II', title_ashes_to_crown: 'Ashes to Crown', menu: 'Menu theme', newgame: 'New game theme', map1: 'Roads of the Realm', map2: 'Map theme II', battle: 'Battle theme', victory: 'Victory', defeat: 'Defeat' };
 let scene = null, base = null, over = null, mapIdx = 0, wanted = null, paused = false, nowPlaying = '';
 export const trackTitle = () => nowPlaying;
 
@@ -159,7 +162,7 @@ function playScene(s) {
   if (quiet) { fadeOut(quiet, 1); quiet = null; } quietKind = null;
   if (s === 'title') startBase(ONE_SHOT.title, false, () => setScene('menu'));
   else if (s === 'victory' || s === 'defeat') startBase(ONE_SHOT[s], false, () => setScene('menu'));
-  else if (s === 'map') { const next = () => { mapIdx = (mapIdx + 1) % 2; startBase(`map${mapIdx + 1}`, false, next); }; startBase(`map${mapIdx + 1}`, false, next); }
+  else if (LISTS[s]) { const list = LISTS[s]; const next = () => { if (scene !== s) return; listIdx[s] = (listIdx[s] + 1) % list.length; startBase(list[listIdx[s]], false, next); }; startBase(list[listIdx[s] % list.length], false, next); }
   else if (LOOPS[s]) startBase(LOOPS[s], true);
 }
 /** Choose what music suits the screen. Safe to call before audio is unlocked: it starts on the first tap. */
@@ -167,7 +170,7 @@ export function setScene(s) { wanted = s; if (!unlocked || !ctx) return; if (s =
 function scenePending() { if (wanted && optOn('music')) { const s = wanted; scene = null; setScene(s); } }
 // ---- quiet music (Matt 22 Oct): the in-game menu and the idle pause get their own subtle pieces, laid over the map music, which waits
 // paused where it was and comes back when the menu closes or the player returns. Each set takes turns, so the same piece never plays twice running.
-const QUIET = { menu: ['gmenu_a', 'gmenu_b'], pause: ['pause_c', 'pause_d'] }; const qIdx = { menu: 0, pause: 0 };
+const QUIET = { menu: ['pause_j', 'gmenu_a', 'gmenu_b'], pause: ['pause_c', 'pause_d'] }; const qIdx = { menu: 0, pause: 0 };
 let quiet = null, quietKind = null;
 export const quietNow = () => quietKind;
 export function setQuiet(kind) {
@@ -197,7 +200,7 @@ export function applyOptions() {
   else if (wanted) { scene = null; setScene(wanted); }
 }
 /** Skip to the other map theme (only while the map music is playing). dir = +1 / -1. Returns the new title. */
-export function skipTrack(dir = 1) { if (!ctx || !unlocked || scene !== 'map' || over || !optOn('music')) return nowPlaying; mapIdx = (mapIdx + (dir > 0 ? 1 : 1)) % 2; const next = () => { mapIdx = (mapIdx + 1) % 2; startBase(`map${mapIdx + 1}`, false, next); }; startBase(`map${mapIdx + 1}`, false, next); return nowPlaying; }
+export function skipTrack(dir = 1) { if (!ctx || !unlocked || scene !== 'map' || over || !optOn('music')) return nowPlaying; const list = LISTS.map; listIdx.map = (listIdx.map + (dir > 0 ? 1 : list.length - 1)) % list.length; const next = () => { if (scene !== 'map') return; listIdx.map = (listIdx.map + 1) % list.length; startBase(list[listIdx.map], false, next); }; startBase(list[listIdx.map], false, next); return nowPlaying; }
 export const startMusic = () => applyOptions();
 export const stopMusic = () => applyOptions();
 export const syncMusic = () => applyOptions();
