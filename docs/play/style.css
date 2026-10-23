@@ -684,3 +684,8 @@ body.coached .back{padding-bottom:var(--coachH,160px)}
 .coach{pointer-events:none}.coach button,.coach a{pointer-events:auto}
 .coach:not(.dock){opacity:.97}
 body:has(#modals .back) #fsfloat{display:none}
+.reveal{margin-top:16px}.revgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px}
+.rev{display:grid;grid-template-columns:14px 1fr auto;column-gap:8px;align-items:center;padding:9px 12px;background:#101b2c;border:1px solid #22344b;border-radius:6px}
+.rev b{font:700 14px var(--body);color:#fff}.rev em{font:700 11px var(--display);letter-spacing:.12em;text-transform:uppercase;font-style:normal;padding:3px 8px;border-radius:3px;background:#22344b;color:#c7d6e8}
+.rev span:last-child{grid-column:2/4;font:500 12.5px var(--body);color:#9fb3cf;margin-top:2px}
+.rev.sharp em{background:#7a2a20;color:#ffd9cf}.rev.good em{background:#6a5220;color:#f3dc9a}.rev.clumsy em,.rev.weak em{background:#1e3a2a;color:#a8e6c0}

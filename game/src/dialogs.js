@@ -247,6 +247,12 @@ export function openSaveLoad(mode = 'save') {
 }
 
 // ===== end of game =============================================================================================================
+/** The end of the game reveals who the sharp commanders were (the rival ladder is hidden while playing). */
+function rivalsReveal(g) {
+  const list = E.rivalReveal?.(g) ?? []; if (!list.length) return null;
+  return h('div', { class: 'reveal' }, h('div', { class: 'sec' }, 'Your rivals, revealed'), h('div', { class: 'revgrid' }, list.map((r) => h('div', { class: 'rev ' + r.rung },
+    h('span', { class: 'dot', style: { background: realmHex(realmOf(r.id)) ?? '#999' } }), h('b', {}, realmName(r.id)), h('em', {}, r.name), h('span', {}, `${r.habit}: ${r.note}`)))));
+}
 export function openEnd(status) {
   setScene(status.victor === S.me ? 'victory' : 'defeat');
   const g = S.g; const rows = E.standings(g, status.victor); const won = status.victor === S.me;
@@ -256,6 +262,7 @@ export function openEnd(status) {
     h('tbody', {}, rows.map((r, i) => h('tr', {}, h('td', { style: { color: '#f3dc9a' } }, i + 1), h('td', {}, h('span', { class: 'dot', style: { background: realmHex(realmOf(r.id)) ?? '#999' } }), r.name + (r.id === S.me ? ' (you)' : '') + (r.winner ? ' ★' : '')), h('td', {}, r.citiesNow), h('td', {}, r.mostCities), h('td', {}, r.citiesTaken), h('td', {}, r.citiesLost), h('td', {}, r.battlesWon), h('td', {}, r.armiesLost)))));
   const big = E.biggestBattle(g, S.me);
   const m = openModal(frame([h('div', { class: 'eyebrow' }, `After ${plural(g.turn, 'turn')}`), h('h2', { style: { fontSize: '42px' } }, title), h('p', { class: 'sub', style: { margin: '8px 0 16px' } }, sub), table,
+    rivalsReveal(g),
     big ? h('p', { class: 'sub', style: { marginTop: '14px' } }, `Your biggest battle: turn ${big.turn}${big.place ? ' at ' + big.place : ''}, ${big.attackers} against ${big.defenders}.`) : null,
     h('div', { class: 'foot' }, h('button', { class: 'btn', onclick: () => { m.close(); } }, 'Look at the map'), h('button', { class: 'btn pri', onclick: () => { m.close(); hooks.toTitle(); } }, 'Main menu'))], { width: 920, closeButton: false }), { dismiss: false }); m.onEsc = () => m.close();
 }

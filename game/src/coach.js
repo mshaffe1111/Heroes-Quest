@@ -260,8 +260,10 @@ let tipOpen = null;
 export function tipOnce(id, { target = null, openGuide: og = null } = {}) {
   const t = TIPS[id]; if (!t || MEM.seen[id] || L) return false;
   if (bubble) return false;      // one bubble at a time: a tip waits for its next chance
-  MEM.seen[id] = 1; save(); tipOpen = id;
-  const close = () => { tipOpen = null; coachHide(); };
+  MEM.seen[id] = 1; save(); tipOpen = id; let watch = null;
+  const close = () => { clearInterval(watch); tipOpen = null; coachHide(); };
+  // a map tip belongs to the map: it goes when any window opens over it
+  if (!t.over) { const mine = () => tipOpen === id; watch = setInterval(() => { if (!mine()) { clearInterval(watch); return; } if (document.querySelector('#modals .back')) close(); }, 300); }
   say({ mood: t.mood ?? '', title: t.title, text: t.text, target: target ?? t.target ?? null, dock: !!t.over,
     buttons: [og ? { label: 'Tell me more', fn: () => { close(); og(t.ch); } } : null, { label: 'Got it', pri: true, fn: close }].filter(Boolean) });
   return true;

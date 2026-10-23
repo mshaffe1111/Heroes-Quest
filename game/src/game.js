@@ -20,8 +20,7 @@ export function newGame(o) {
   g.rules.fog = !!o.fog; g.rules.classic = !!o.classic;
   const ids = [...g.realms.keys()]; const me = o.realm && g.realms.has(o.realm) ? o.realm : ids[0];
   g.realms.get(me).human = true;
-  for (const id of ids) if (id !== me) E.setDifficulty(g, id, o.difficulty ?? 'medium');
-  E.assignSkills(g);
+  E.setupRivals(g, me, o.difficulty ?? 'medium');      // the rival ladder: each rival a rung (Clumsy..Sharp) from the difficulty's stretch, and a habit
   const hero = [...g.armies.values()].find((a) => a.owner === me && a.type === 'hero'); if (hero && o.heroName) hero.name = o.heroName.slice(0, 20); if (hero && o.portrait) hero.portrait = o.portrait;
   g.meta = { difficulty: o.difficulty ?? 'medium', shape: o.shape, seed: o.seed, cities: o.cities, rivals: ids.length - 1, unsworn: o.neutrals ?? 'strong', startedAt: Date.now() };
   return g;
@@ -437,7 +436,7 @@ function computeReach() {
 }
 /** The first time the selected group can reach an enemy, a free city or a special place, the advisor says what it is. */
 function reachTips(arm, reach, hit) {
-  if (!S.g || S.busy || modalOpen() || CO.tipShowing()) return; const g = S.g, W = g.width; const api = coachApi(); const more = { openGuide: (ch) => D.openHelp(ch) };
+  if (!S.g || S.busy || warOver() || modalOpen() || CO.tipShowing()) return; const g = S.g, W = g.width; const api = coachApi(); const more = { openGuide: (ch) => D.openHelp(ch) };
   const at = (i) => ({ x: i % W, y: (i / W) | 0 }); const ring = (p) => () => api.tileAt(p.x, p.y);
   for (const i of hit) { const p = at(i); const c = E.cityAt(g, p.x, p.y);
     if (c && !c.owner && CO.tipOnce('free-city', { ...more, target: ring(p) })) return;

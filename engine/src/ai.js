@@ -1,3 +1,4 @@
+import { applyHabit } from './rivals.js';
 import { ARMIES, priceOf } from './armies.js';
 import { armiesAt, cityAt, tileAt, moveGroup, attack, resolveCapture, embark, disembark, setProduction, acceptHero, tileDefenceBonus,
   orderedArmiesAt, realmEconomy, defend } from './game.js';
@@ -443,7 +444,7 @@ export function chooseDoctrine(g, realmId, k = AI) {
 }
 export function aiPlay(g, realmId) {
   const realm = g.realms.get(realmId); const st = state(g, realmId);
-  st.cfg = applySkill({ ...AI, ...(DIFFICULTY[realm.difficulty ?? 'medium'] ?? {}) }, realm.skill ?? 0);
+  st.cfg = applyHabit(applySkill({ ...AI, ...(DIFFICULTY[realm.difficulty ?? 'medium'] ?? {}) }, realm.skill ?? 0), realm.habit);      // rung (level + skill), then habit (rivals.js)
   st.leader = leaderOf(g, realmId);
   trackGrudges(g, realmId, st);
   for (const a of g.armies.values()) if (a.owner === realmId && isHero(a) && a.perkPoints > 0) aiChoosePerk(g, a.id);
