@@ -1,7 +1,7 @@
 import { applyHabit } from './rivals.js';
 import { ARMIES, priceOf } from './armies.js';
 import { armiesAt, cityAt, tileAt, moveGroup, attack, resolveCapture, embark, disembark, setProduction, acceptHero, tileDefenceBonus,
-  orderedArmiesAt, realmEconomy, defend } from './game.js';
+  orderedArmiesAt, realmEconomy, defend, groupCanFly } from './game.js';
 import { exactOdds } from './advisor.js';
 import { defaultOrder } from './stack.js';
 import { routeSearch, routeTo } from './pathfind.js';
@@ -30,12 +30,12 @@ export const AI = {
   scoutTurns: 20,         // turns a scout keeps exploring before it comes home (fog of war only)
   maxTargets: 10,         // candidate cities examined per group
   patience: 4,            // turns a group waits outside a city it cannot yet beat
-  oddsNoise: 0,           // how far a commander's reading of the odds can be off (0 = exact; the odds themselves are exact, see advisor.exactOdds)
+  oddsNoise: 0.1,         // how far a commander's reading of the odds can be off (0 = exact; the odds themselves are exact, see advisor.exactOdds)
   travelTurns: 7,         // how many turns of travel a target may be away when it is chosen
   crewMax: 7,             // soldiers (besides a hero) in one attack group
   idle: 0,                // chance a city with spare soldiers sits still this turn instead of sending a group
-  productionMistake: 0.25,// chance a city builds its second-best army instead of its best
-  targetNoise: 0,         // chance a group picks any acceptable target instead of the best-scoring one
+  productionMistake: 0.3, // chance a city builds its second-best army instead of its best
+  targetNoise: 0.35,      // chance a group picks any acceptable target instead of the best-scoring one
   focusHuman: 0,          // extra pull of a human player's cities as targets (0.5 = 50% more attractive)
   hateLeader: 0,          // extra pull of the realm holding the most cities, once it is not us
   aggression: 0.5,        // 0..1: how little a lost army counts against a prize (Wesnoth's rule: value = P(win) x prize - (1 - aggression) x expected losses)
@@ -44,23 +44,37 @@ export const AI = {
   fitMax: 0,              // share of its pips an army may have lost and still set out on an attack (0 = it waits until it has healed fully)
   fallBackBelow: 0.2,     // defenders in the open give ground when their chance of holding (worked out afresh after every duel) drops below this
   retreatMargin: 0,       // a commander calls off an assault when the value of pressing on (see rating) falls below this; negative = stubborn, positive = skittish
+  redirect: 1,            // 1 = a group whose target fell or that gave up on it looks for another target from where it stands (0 = it always goes home)
+  redirectReach: 3,       // ... no more than this many turns away
+  poolCities: 2,          // invasion groups: how many cities' spare soldiers may be pooled into one force (1 = every city fights on its own)
+  poolReach: 16,          // ... from cities at most this many squares from the gathering city
+  musterReach: 14,        // ... for a target at most this many squares from the gathering city
+  holdTurns: 2,           // turns the gathering city waits for the rest of the force
+  musters: 1,             // new invasion forces a realm starts gathering in one turn
+  huntReach: 0,           // extra squares of reach when gathering a force against a human player's city
+  humanOdds: 0,           // how much lower the odds may be when the target is a human player's city (Hard and Expert press harder on you)
 };
 
 // Four levels. They change judgement and temperament only, never income, armies or the rules (manual 3e): each realm plays with the same
-// gold and the same armies at every level. Medium is the AI exactly as it was before levels existed.
-//   Easy    timid and hesitant: wants near-certain odds, sends small groups, often stays home, misjudges odds, wanders after poor targets.
+// gold and the same armies at every level. Medium is the plain settings above (Build E: a commander who sometimes misreads the odds or picks
+// a poorer target, and pools the spare soldiers of two cities).
+//   Easy    timid and hesitant: wants near-certain odds, sends small groups, often stays home, misjudges odds, wanders after poor targets,
+//           never pools cities, goes home instead of looking for a new target, and leaves a human player's cities alone more than others.
 //   Medium  the baseline.
-//   Hard    sharper odds, bigger reach, rarely wastes a build, leans on the human player and on the runaway leader.
-//   Expert  the same sharpness, pressing on thinner odds, and it hunts the human player first.
+//   Hard    reads the odds almost truly, rarely wastes a build, pools three cities, picks fewer targets it cannot yet beat and waits less
+//           outside them, leans on the human player and on the runaway leader.
+//   Expert  reads the odds truly, never wastes a build, only marches on a city it means to attack (choose = attack odds), gives up a hopeless
+//           wait sooner, pools three cities and reaches further for a human's city, presses on thinner odds
+//           against a human, and hunts the human player first. (Measured, Build E: the old Expert's extra temperament - thin odds everywhere,
+//           early doctrines, grudges and chasing the leader - made it weaker than Medium; its strength now comes from judging truly.)
 export const LEVELS = ['easy', 'medium', 'hard', 'expert'];
 export const DIFFICULTY = {
-  easy: { fallBackBelow: 0.35, retreatMargin: 0.15, aggression: 0.3, grudge: 0, oddsToAttack: 0.75, oddsToChoose: 0.65, garrison: 3, patience: 2, docReserve: 900, oddsNoise: 0.12, travelTurns: 5, maxTargets: 4, crewMax: 4,
-    idle: 0.45, productionMistake: 0.5, targetNoise: 0.4, focusHuman: 0, hateLeader: 0, ruinOdds: 0.55 },
+  easy: { redirect: 0, poolCities: 1, fallBackBelow: 0.35, retreatMargin: 0.15, aggression: 0.3, grudge: 0, oddsToAttack: 0.75, oddsToChoose: 0.65, garrison: 3, patience: 2, docReserve: 900, oddsNoise: 0.12, travelTurns: 5, maxTargets: 4, crewMax: 4,
+    idle: 0.45, productionMistake: 0.5, targetNoise: 0.4, focusHuman: -0.3, hateLeader: 0, ruinOdds: 0.55 },
   medium: {},
-  hard: { fallBackBelow: 0.15, fitMax: 0.25, docReserve: 450, aggression: 0.65, grudge: 0.3, oddsToAttack: 0.55, oddsToChoose: 0.5, patience: 5, travelTurns: 8, maxTargets: 14,
-    productionMistake: 0.1, focusHuman: 0.35, hateLeader: 0.25 },
-  expert: { fallBackBelow: 0.12, fitMax: 0.25, docReserve: 350, retreatMargin: -0.1, aggression: 0.8, grudge: 0.5, oddsToAttack: 0.48, oddsToChoose: 0.42, patience: 6, travelTurns: 9, maxTargets: 20,
-    productionMistake: 0, focusHuman: 0.9, hateLeader: 0.5, ruinOdds: 0.75 },
+  hard: { oddsNoise: 0.04, targetNoise: 0.12, productionMistake: 0.1, oddsToChoose: 0.58, patience: 3, poolCities: 3, poolReach: 18, musterReach: 16, fallBackBelow: 0.15, docReserve: 450, aggression: 0.65, grudge: 0.3,
+    focusHuman: 0.35, hateLeader: 0.25, humanOdds: 0.05, huntReach: 4 },
+  expert: { oddsNoise: 0, targetNoise: 0, productionMistake: 0, oddsToChoose: 0.62, patience: 2, poolCities: 3, poolReach: 18, musterReach: 16, focusHuman: 0.9, humanOdds: 0.12, huntReach: 8 },
 };
 /**
  * The question "do we give ground?" for computer defenders on open ground: hand the result to attack() as `fallBack`. Looks at the battle as it now stands.
@@ -125,6 +139,8 @@ const visOf = (g, realmId) => (fogOn(g) ? (state(g, realmId).vis ??= visibleSet(
 const seesTile = (g, realmId, x, y) => { const v = visOf(g, realmId); return !v || v.has(tileIndex(g, x, y)); };
 /** What this realm believes about a city: { owner, razed, live, garrison } (null = never seen). With fog off, the plain truth. */
 const believe = (g, realmId, c) => knownCity(g, realmId, c, visOf(g, realmId));
+/** Route-search options that keep the computer to what it knows: only enemy armies in sight block its routes, and cities are hostile as it believes them. */
+const seenOpts = (g, realmId) => (fogOn(g) ? { visible: visOf(g, realmId), believe: (c) => believe(g, realmId, c) } : {});
 function enemyNear(g, realmId, city) {
   const k = cfgOf(g, realmId); let n = 0;
   for (const a of g.armies.values()) if (a.owner && a.owner !== realmId && a.x != null && cheb(a, city) <= k.threatRange && seesTile(g, realmId, a.x, a.y)) n++;
@@ -182,8 +198,19 @@ function chooseProduction(g, realmId) {
 /** Walk a group along its route as far as its move points and the rules allow. Returns what happened. */
 function walk(g, realmId, grp, route) {
   const st = state(g, realmId);
-  for (const step of route.steps) {
+  const wet = (s) => { const t = tileAt(g, s.x, s.y); return t && t.terrain === 'water' && !t.bridge && !t.cityId; };
+  for (const [i, step] of route.steps.entries()) {
     const ids = aliveIds(g, realmId, grp.ids); if (!ids.length) return { what: 'dead' };
+    // a hero carried by flyers never ends a turn hanging over open water (should the flyers fall, he would be left there): it waits on the shore
+    // until it can cross in one go
+    if (step.action === 'move' && wet(step) && !wet(g.armies.get(ids[0]))) {
+      const armies = ids.map((id) => g.armies.get(id));
+      if (armies.some(isHero) && !armies.some((a) => isHero(a) && a.items?.some((it) => it.fly)) && groupCanFly(armies)) {
+        let n = 1; while (i + n < route.steps.length && wet(route.steps[i + n])) n++;
+        const fresh = armies.every((a) => a.mp >= moveOf(a, g.rules));      // with a whole turn's move and still too far: no waiting helps, so it goes
+        if (!fresh && Math.min(...armies.map((a) => a.mp)) < (n + 1) * g.rules.flyCost) return { what: 'tired' };
+      }
+    }
     if (step.action === 'embark') { const r = embark(g, ids); st.stats.moves++; if (r.ok) st.stats.embarks++; return { what: r.ok ? 'embarked' : 'blocked', reason: r.reason }; }
     if (step.action === 'disembark') { const r = disembark(g, ids); return { what: r.ok ? 'landed' : 'blocked', reason: r.reason }; }
     if (step.action === 'attack') return { what: 'at-target', step };
@@ -197,22 +224,23 @@ function walk(g, realmId, grp, route) {
 }
 function captureChoice(g, realmId) { return g.realms.get(realmId).gold < 150 ? 'pillage' : 'occupy'; }
 
-function runAttack(g, realmId, grp) {
+function runAttack(g, realmId, grp, given = null) {
   const st = state(g, realmId); const city = g.cities.get(grp.cityId);
-  if (!city || city.owner === realmId || city.razed) return 'retarget';
+  if (!city || city.owner === realmId || (fogOn(g) ? believe(g, realmId, city)?.razed : city.razed)) return 'retarget';     // under fog it learns of a razing only by seeing it
+  if (city.razed) { const ids = aliveIds(g, realmId, grp.ids); const a = ids.length && g.armies.get(ids[0]); if (a && cheb(a, city) <= 1) return 'retarget'; }   // arrived at a ruin
   const ids = aliveIds(g, realmId, grp.ids); if (!ids.length) return 'dead';
-  const k = cfgOf(g, realmId); const search = routeSearch(g, ids, { maxCost: k.travelTurns * 2 * turnOf(g, ids) });
-  const route = routeTo(search, city); if (!route) { st.stats.noRoute++; return 'retarget'; }
+  const k = cfgOf(g, realmId);
+  const route = given ?? routeTo(routeSearch(g, ids, { maxCost: k.travelTurns * 2 * turnOf(g, ids), ...seenOpts(g, realmId) }), city); if (!route) { st.stats.noRoute++; return 'retarget'; }
   const res = walk(g, realmId, grp, route);
   if (res.what === 'blocked') { grp.stuck = (grp.stuck ?? 0) + 1; if (grp.stuck > 3) return 'retarget'; }
   if (res.what === 'at-target') {
     const live = aliveIds(g, realmId, grp.ids).map((id) => g.armies.get(id));
-    const info = battleInfo(g, live, city.x, city.y, k.oddsNoise); const odds = info.win;
+    const info = battleInfo(g, live, city.x, city.y, k.oddsNoise); const odds = info.win; const hb = humanHeld(g, realmId, city) ? k.humanOdds : 0;
     const rating = odds * cityWorth(g, realmId, city) - (1 - k.aggression) * info.lossA;     // prize won, less the armies it is likely to cost
-    if ((odds >= k.oddsToAttack && rating > 0) || (live.length >= 8 && odds >= k.oddsToChoose - 0.1)) {
+    if ((odds >= k.oddsToAttack - hb && rating > 0) || (live.length >= 8 && odds >= k.oddsToChoose - hb - 0.1)) {
       st.stats.attacks++; if (city.owner) { st.stats.vs ??= {}; st.stats.vs[city.owner] = (st.stats.vs[city.owner] ?? 0) + 1; }
       // after every duel the commander looks at the battle as it now stands, and calls the assault off if pressing on no longer pays
-      const allIn = !(odds >= k.oddsToAttack && rating > 0);       // sent in by the "eight armies, near enough" rule: it does not turn back
+      const allIn = !(odds >= k.oddsToAttack - hb && rating > 0);       // sent in by the "eight armies, near enough" rule: it does not turn back
       const worth = cityWorth(g, realmId, city); const tile = tileAt(g, city.x, city.y); const cb = tileDefenceBonus(g, city.x, city.y);
       const retreat = ({ attackers, defenders }) => {
         const e = exactOdds({ attackers, defenders, tile, cityBonus: cb, rules: g.rules });
@@ -246,7 +274,7 @@ function runReturn(g, realmId, grp) {
   // is dropped, the armies are not), rather than trying again and again to squeeze a ninth army in.
   if (!home || home.owner !== realmId || home.razed || !roomFor(g, home, ids.length)) home = nearestOwnCity(g, realmId, a, ids.length);
   if (!home) return 'dead'; grp.cityId = home.id;
-  const route = routeTo(routeSearch(g, ids, { maxCost: 600 }), home); if (!route) return 'dead';
+  const route = routeTo(routeSearch(g, ids, { maxCost: 600, ...seenOpts(g, realmId) }), home); if (!route) return 'dead';
   walk(g, realmId, grp, route);
   const b = g.armies.get(ids[0]); return b && b.x === home.x && b.y === home.y ? 'done' : 'moving';
 }
@@ -256,7 +284,7 @@ function runExplore(g, realmId, grp) {
   const site = siteAt(g, grp.x, grp.y); if (!site || (site.kind === 'ruin' && site.explored)) return 'return';
   const a = g.armies.get(ids[0]);
   if (a.x !== grp.x || a.y !== grp.y) {
-    const route = routeTo(routeSearch(g, ids, { maxCost: 600 }), grp); if (!route) return 'return';
+    const route = routeTo(routeSearch(g, ids, { maxCost: 600, ...seenOpts(g, realmId) }), grp); if (!route) return 'return';
     const res = walk(g, realmId, grp, route); if (res.what === 'dead') return 'dead';
     const b = g.armies.get(ids[0]); if (!b || b.x !== grp.x || b.y !== grp.y) return 'moving';
   }
@@ -274,21 +302,40 @@ function runExplore(g, realmId, grp) {
 function sendHome(g, realmId, ids) {
   const st = state(g, realmId); const live = aliveIds(g, realmId, ids); if (!live.length) return;
   const a = g.armies.get(live[0]); if (cityAt(g, a.x, a.y)?.owner === realmId) return;
-  const home = nearestOwnCity(g, realmId, a, live.length); if (home) st.groups.push({ id: st.nextId++, kind: 'return', ids: live, cityId: home.id });
+  const home = nearestOwnCity(g, realmId, a, live.length); if (!home) return null;
+  const grp = { id: st.nextId++, kind: 'return', ids: live, cityId: home.id }; st.groups.push(grp); return grp;
 }
 
+/** Give one group its orders for this turn and deal with the outcome. `route`: a route already worked out for it this turn (saves a search). */
+function runOne(g, realmId, grp, route = null) {
+  const st = state(g, realmId);
+  grp.ids = aliveIds(g, realmId, grp.ids);
+  let res = grp.ids.length ? null : 'dead';
+  if (grp.ids.length) emit(() => ({ t: 'orders', realm: realmId, group: grp.id, kind: grp.kind, ids: grp.ids.slice(), cityId: grp.cityId ?? null, site: grp.x != null ? [grp.x, grp.y] : null }));
+  if (!res) res = grp.kind === 'attack' ? runAttack(g, realmId, grp, route) : grp.kind === 'explore' ? runExplore(g, realmId, grp) : grp.kind === 'scout' ? runScout(g, realmId, grp) : runReturn(g, realmId, grp);
+  if (res === 'moving' || res === 'wait') return res;
+  const i = st.groups.indexOf(grp); if (i >= 0) st.groups.splice(i, 1);
+  if (res === 'dead' || res === 'done') return res;       // arrived (they now count as free armies in their city) or lost
+  // a group that cannot go on with its errand first looks for another worth taking from where it stands (Medium and up); otherwise it goes home
+  if (res === 'retarget' || res === 'retreat') { const re = redirect(g, realmId, grp); if (re) return 'redirected'; }
+  if (res === 'retreat' || res === 'return' || res === 'retarget') { const home = sendHome(g, realmId, grp.ids); if (home) runOne(g, realmId, home); }     // and they start back at once
+  return res;
+}
 function runGroups(g, realmId) {
   const st = state(g, realmId);
-  for (const grp of [...st.groups]) {
-    grp.ids = aliveIds(g, realmId, grp.ids);
-    let res = grp.ids.length ? null : 'dead';
-    if (grp.ids.length) emit(() => ({ t: 'orders', realm: realmId, group: grp.id, kind: grp.kind, ids: grp.ids.slice(), cityId: grp.cityId ?? null, site: grp.x != null ? [grp.x, grp.y] : null }));
-    if (!res) res = grp.kind === 'attack' ? runAttack(g, realmId, grp) : grp.kind === 'explore' ? runExplore(g, realmId, grp) : grp.kind === 'scout' ? runScout(g, realmId, grp) : runReturn(g, realmId, grp);
-    if (res === 'moving' || res === 'wait') continue;
-    st.groups.splice(st.groups.indexOf(grp), 1);
-    if (res === 'dead' || res === 'done') continue;       // arrived (they now count as free armies in their city) or lost
-    if (res === 'retreat' || res === 'return' || res === 'retarget') sendHome(g, realmId, grp.ids);
-  }
+  for (const grp of [...st.groups]) runOne(g, realmId, grp);
+}
+/** A group whose target is gone (or that gave up on it) picks a new one from where it stands, if one is good enough; it marches on at once if it still can. */
+function redirect(g, realmId, grp) {
+  const k = cfgOf(g, realmId); if (!k.redirect) return false;
+  const ids = aliveIds(g, realmId, grp.ids); if (!ids.length) return false;
+  const a = g.armies.get(ids[0]); if (a.afloat) return false;
+  const pick = chooseTarget(g, realmId, ids, a, grp.cityId); if (!pick) return false;
+  if (pick.route.cost > k.redirectReach * turnOf(g, ids)) return false;     // too far from here: better to go home and start afresh
+  const st = state(g, realmId); st.stats.redirected = (st.stats.redirected ?? 0) + 1;
+  const ng = { id: st.nextId++, kind: 'attack', ids, cityId: pick.c.id }; st.groups.push(ng);
+  if (ids.some((id) => g.armies.get(id).mp > 0)) runOne(g, realmId, ng, pick.route);
+  return true;
 }
 
 // ---- forming new groups -------------------------------------------------------------------------------------------------
@@ -297,15 +344,19 @@ function candidateTargets(g, realmId) {
   if (!fogOn(g)) return all;
   return all.filter((c) => { const b = believe(g, realmId, c); return b && !b.razed && b.owner !== realmId; });      // only cities it has found
 }
-function chooseTarget(g, realmId, ids, from) {
+/** Does this realm believe a human player holds the city? */
+const humanHeld = (g, realmId, c) => { const o = fogOn(g) ? believe(g, realmId, c)?.owner : c.owner; return !!(o && g.realms.get(o)?.human); };
+function chooseTarget(g, realmId, ids, from, avoid = null) {
   const k = cfgOf(g, realmId); const st = state(g, realmId);
-  const search = routeSearch(g, ids, { maxCost: k.travelTurns * turnOf(g, ids) });
+  const search = routeSearch(g, ids, { maxCost: k.travelTurns * turnOf(g, ids), ...seenOpts(g, realmId) });
   const armies = ids.map((id) => g.armies.get(id));
-  const cands = candidateTargets(g, realmId).map((c) => ({ c, r: routeTo(search, c) })).filter((x) => x.r)
-    .sort((a, b) => a.r.cost - b.r.cost).slice(0, k.maxTargets);
+  const reach = candidateTargets(g, realmId).filter((c) => c.id !== avoid).map((c) => ({ c, r: routeTo(search, c) })).filter((x) => x.r)
+    .sort((a, b) => a.r.cost - b.r.cost);
+  // the nearest few, and every city a human player holds that it can reach: a human's cities are always worth a look
+  const cands = reach.filter((x, i) => i < k.maxTargets || humanHeld(g, realmId, x.c));
   let best = null; const ok = [];
   for (const { c, r } of cands) {
-    const odds = oddsAgainst(g, armies, c.x, c.y, k.oddsNoise); if (odds < k.oddsToChoose) continue;
+    const odds = oddsAgainst(g, armies, c.x, c.y, k.oddsNoise); if (odds < k.oddsToChoose - (humanHeld(g, realmId, c) ? k.humanOdds : 0)) continue;
     const value = cityWorth(g, realmId, c);
     const score = value * odds / (1 + r.cost / (search.turn * 3));
     const cand = { score, c, odds, route: r };
@@ -323,6 +374,7 @@ function formAttackGroups(g, realmId) {
     const need = garrisonNeed(g, realmId, city);
     const soldiers = here.filter((a) => !isHero(a)).sort((a, b) => strOf(b) - strOf(a));
     const surplus = soldiers.length - need; if (surplus < k.minGroup) continue;
+    if (holding(st, city.id, g.turn) && here.length < g.rules.cityGarrisonLimit) { st.stats.held = (st.stats.held ?? 0) + 1; continue; }     // waiting for the rest of the invasion force
     if (k.idle && g.rng.next() < k.idle) { st.stats.idled = (st.stats.idled ?? 0) + 1; continue; }
     const crew = soldiers.filter((a) => fit(g, k, a)).slice(0, Math.min(k.crewMax, surplus));       // the strongest healthy ones go; the weakest and the wounded stay as garrison
     const hero = here.find((a) => isHero(a) && fit(g, k, a)); if (hero) crew.unshift(hero);
@@ -331,7 +383,64 @@ function formAttackGroups(g, realmId) {
     const pick = chooseTarget(g, realmId, ids, city);
     if (!pick) { st.stats.noTarget++; continue; }
     st.stats.formed++;
-    st.groups.push({ id: st.nextId++, kind: 'attack', ids, cityId: pick.c.id }); ids.forEach((id) => busy.add(id));
+    const grp = { id: st.nextId++, kind: 'attack', ids, cityId: pick.c.id }; st.groups.push(grp); ids.forEach((id) => busy.add(id));
+    runOne(g, realmId, grp, pick.route);          // it sets out the turn it is formed
+  }
+}
+// ---- invasion groups: pooling the spare soldiers of several cities ------------------------------------------------------------------
+// One city rarely has more than a soldier or two to spare, and one or two armies cannot take a defended city. So a realm picks a target, picks
+// its own city nearest to it (the gathering city), and sends the spare soldiers of up to `poolCities` nearby cities there. The gathering city
+// holds its own spare soldiers back until they have arrived (at most `holdTurns` turns); then the whole force sets out together, the same turn.
+/** A city's spare soldiers: healthy, free, ashore and beyond the garrison it needs, the strongest first; and a healthy free hero, if any. */
+function spareAt(g, realmId, city, busy, k) {
+  const here = armiesAt(g, city.x, city.y).filter((a) => a.owner === realmId && !busy.has(a.id) && !a.afloat);
+  const soldiers = here.filter((a) => !isHero(a)).sort((a, b) => strOf(b) - strOf(a));
+  const surplus = soldiers.length - garrisonNeed(g, realmId, city);
+  return { city, count: armiesAt(g, city.x, city.y).length, spare: surplus > 0 ? soldiers.filter((a) => fit(g, k, a)).slice(0, surplus) : [], hero: here.find((a) => isHero(a) && fit(g, k, a)) ?? null };
+}
+/** Is this city waiting for reinforcements that are still on their way? */
+const holding = (st, cityId, turn) => { const h = st.holds?.[cityId]; return !!h && h.until >= turn && st.groups.some((x) => x.rally && x.cityId === cityId); };
+function muster(g, realmId) {
+  const k = cfgOf(g, realmId); const st = state(g, realmId);
+  st.holds ??= {}; for (const id of Object.keys(st.holds)) if (!holding(st, id, g.turn)) delete st.holds[id];
+  if (k.poolCities <= 1) return;
+  const busy = inAnyGroup(st);
+  const mine = [...g.cities.values()].filter((c) => c.owner === realmId && !c.razed);
+  const pools = mine.map((c) => spareAt(g, realmId, c, busy, k)).filter((p) => p.spare.length && !st.holds[p.city.id]);
+  if (pools.reduce((s, p) => s + p.spare.length, 0) < 2) return;
+  const targets = candidateTargets(g, realmId).map((t) => { let stage = null, d = 1e9; for (const c of mine) { const e = cheb(c, t); if (e < d) { d = e; stage = c; } } return { t, stage, d }; })
+    .filter((x) => x.stage && x.d <= k.musterReach + (humanHeld(g, realmId, x.t) ? k.huntReach : 0)).sort((a, b) => a.d - b.d);
+  for (let n = 0; n < k.musters; n++) {
+    let best = null; let seen = 0;
+    for (const { t, stage, d } of targets) {
+      if (seen >= k.maxTargets && !humanHeld(g, realmId, t)) continue;
+      if (st.holds[stage.id]) continue;                     // already gathering there
+      seen++;
+      const own = pools.find((p) => p.city === stage);
+      const local = own ? [...(own.hero ? [own.hero] : []), ...own.spare] : [];
+      const room = g.rules.cityGarrisonLimit - armiesAt(g, stage.x, stage.y).length;
+      const helpers = pools.filter((p) => p.city !== stage && p.spare.length && cheb(p.city, stage) <= k.poolReach)
+        .sort((a, b) => cheb(a.city, stage) - cheb(b.city, stage)).slice(0, k.poolCities - 1);
+      if (!helpers.length) continue;
+      const extra = helpers.flatMap((p) => p.spare.map((a) => ({ a, p }))).sort((x, y) => strOf(y.a) - strOf(x.a)).slice(0, Math.max(0, Math.min(8 - local.length, room)));
+      if (!extra.length || local.length + extra.length < 2) continue;
+      const crew = [...local, ...extra.map((x) => x.a)];
+      const hb = humanHeld(g, realmId, t) ? k.humanOdds : 0;
+      const odds = oddsAgainst(g, crew, t.x, t.y, k.oddsNoise); if (odds < k.oddsToChoose - hb) continue;
+      if (local.length && oddsAgainst(g, local, t.x, t.y) >= k.oddsToAttack - hb) continue;     // the city can do it alone: it will (formAttackGroups)
+      const far = Math.max(...extra.map((x) => cheb(x.p.city, stage)));
+      const score = cityWorth(g, realmId, t) * odds / (1 + (d + far) / 12);
+      if (!best || score > best.score) best = { score, t, stage, extra };
+    }
+    if (!best) return;
+    st.holds[best.stage.id] = { until: g.turn + k.holdTurns, target: best.t.id };
+    st.stats.rallies = (st.stats.rallies ?? 0) + 1;
+    const byCity = new Map(); for (const { a, p } of best.extra) (byCity.get(p) ?? byCity.set(p, []).get(p)).push(a);
+    for (const [p, list] of byCity) {
+      const ids = list.map((a) => a.id); ids.forEach((id) => busy.add(id)); p.spare = p.spare.filter((a) => !ids.includes(a.id));
+      const grp = { id: st.nextId++, kind: 'return', rally: true, ids, cityId: best.stage.id }; st.groups.push(grp);
+      runOne(g, realmId, grp);                               // they set out at once
+    }
   }
 }
 function formExplorers(g, realmId) {
@@ -342,7 +451,7 @@ function formExplorers(g, realmId) {
     const hero = armiesAt(g, city.x, city.y).find((a) => a.owner === realmId && isHero(a) && !busy.has(a.id) && fit(g, k, a)); if (!hero) continue;
     const escorts = armiesAt(g, city.x, city.y).filter((a) => a.owner === realmId && !isHero(a) && !busy.has(a.id) && fit(g, k, a)).sort((a, b) => strOf(b) - strOf(a));
     const spare = Math.max(0, escorts.length - garrisonNeed(g, realmId, city)); const crew = [hero, ...escorts.slice(0, Math.min(3, spare))];
-    const ids = crew.map((a) => a.id); const search = routeSearch(g, ids, { maxCost: k.exploreRange });
+    const ids = crew.map((a) => a.id); const search = routeSearch(g, ids, { maxCost: k.exploreRange, ...seenOpts(g, realmId) });
     let best = null;
     for (const s of g.sites.values()) {
       if (taken.has(key(s.x, s.y))) continue;
@@ -354,7 +463,7 @@ function formExplorers(g, realmId) {
       const w = (s.kind === 'temple' ? 1.4 : s.kind === 'ruin' ? 1.0 : 0.6) / (1 + r.cost / 30);
       if (!best || w > best.w) best = { w, s };
     }
-    if (best) { st.stats.explored++; st.groups.push({ id: st.nextId++, kind: 'explore', ids, x: best.s.x, y: best.s.y }); ids.forEach((id) => busy.add(id)); taken.add(key(best.s.x, best.s.y)); }
+    if (best) { st.stats.explored++; const grp = { id: st.nextId++, kind: 'explore', ids, x: best.s.x, y: best.s.y }; st.groups.push(grp); ids.forEach((id) => busy.add(id)); taken.add(key(best.s.x, best.s.y)); runOne(g, realmId, grp); }
   }
 }
 
@@ -381,7 +490,7 @@ function runScout(g, realmId, grp) {
   const k = cfgOf(g, realmId); grp.age = (grp.age ?? 0) + 1;
   if (grp.age > k.scoutTurns) return 'return';
   const W = g.width, H = g.height; const a = g.armies.get(ids[0]);
-  const search = routeSearch(g, ids, { maxCost: 14 * turnOf(g, ids) });
+  const search = routeSearch(g, ids, { maxCost: 14 * turnOf(g, ids), ...seenOpts(g, realmId) });
   let best = null;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     if (!isExp(g, realmId, x, y) || (x === a.x && y === a.y)) continue;
@@ -456,6 +565,7 @@ export function aiPlay(g, realmId) {
   runGroups(g, realmId);
   st.vis = null;
   formAttackGroups(g, realmId);
+  muster(g, realmId);          // what is left over, after every city that can attack on its own has done so
   formExplorers(g, realmId);
   formScouts(g, realmId);
   // anything left standing in the open with no orders goes home
@@ -463,8 +573,7 @@ export function aiPlay(g, realmId) {
   for (const a of g.armies.values()) if (a.owner === realmId && a.x != null && !busy.has(a.id) && cityAt(g, a.x, a.y)?.owner !== realmId) strays.push(a.id);
   if (strays.length) {
     const byTile = new Map(); for (const id of strays) { const a = g.armies.get(id); (byTile.get(key(a.x, a.y)) ?? byTile.set(key(a.x, a.y), []).get(key(a.x, a.y))).push(id); }
-    for (const ids of byTile.values()) sendHome(g, realmId, ids);
-    runGroups(g, realmId);
+    for (const ids of byTile.values()) { const grp = sendHome(g, realmId, ids); if (grp) runOne(g, realmId, grp); }     // only the new errands: the others have had their turn
   }
   // cities that hold armies stand guard
   for (const c of g.cities.values()) if (c.owner === realmId) { const ids = armiesAt(g, c.x, c.y).filter((a) => a.owner === realmId && !busy.has(a.id) && !a.afloat).map((a) => a.id); if (ids.length) defend(g, ids); }

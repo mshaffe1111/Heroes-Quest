@@ -10,6 +10,7 @@ import { dropDeadHeroItems, speedMultiplier, heroTax, makeItem } from './items.j
 import { questKills, questCapture, checkQuest } from './quests.js';
 import { revealAround, refreshFog, sightOf } from './fog.js';
 import { emit, isRecording as recordingNow } from './events.js';
+import { exactOdds } from './advisor.js';
 import { newTurnOrders, statusFrom as statusOf } from './orders.js';
 import { hasDoctrine, buildTurns, cityHealOf, heroPriceFor, battleXpFor, taxFor } from './doctrines.js';
 import { blankStats, openLedger, stat, earned, spent, logBattle, closeRound } from './stats.js';
@@ -244,11 +245,12 @@ export function attack(g, ids, x, y, opts = {}) {
   const attacker = groupOf(g, ids)[0]?.owner ?? null;
   const defOwner = armiesAt(g, x, y).find((a) => a.owner !== attacker)?.owner ?? cityAt(g, x, y)?.owner ?? null;
   const city = cityAt(g, x, y); const tile = tileAt(g, x, y);
-  const seen = recordingNow() ? { from: [groupOf(g, ids)[0].x, groupOf(g, ids)[0].y], attTypes: groupOf(g, ids).map((a) => a.type), defTypes: armiesAt(g, x, y).filter((a) => a.owner !== attacker).map((a) => a.type), defIds: armiesAt(g, x, y).filter((a) => a.owner !== attacker).map((a) => a.id), cityId: city?.id ?? null } : null;
+  const seen = recordingNow() ? { from: [groupOf(g, ids)[0].x, groupOf(g, ids)[0].y], attTypes: groupOf(g, ids).map((a) => a.type), defTypes: armiesAt(g, x, y).filter((a) => a.owner !== attacker).map((a) => a.type), defIds: armiesAt(g, x, y).filter((a) => a.owner !== attacker).map((a) => a.id), cityId: city?.id ?? null,
+    odds: (() => { try { const dfs = armiesAt(g, x, y).filter((a) => a.owner !== attacker); return dfs.length ? exactOdds({ attackers: groupOf(g, ids), defenders: dfs, tile, cityBonus: tileDefenceBonus(g, x, y), camped: dfs.some((a) => a.defending), rules: g.rules }).winChance : 1; } catch { return null; } })() } : null;      // the odds as they stood (blunder check, playback)
   const res = attackCore(g, ids, x, y, opts);
   if (seen && res.ok) emit(() => ({ t: 'attack', realm: attacker, defender: defOwner, ids: ids.slice(), from: seen.from, at: [x, y], place: city?.name ?? null, cityId: seen.cityId, attTypes: seen.attTypes, defTypes: seen.defTypes, defIds: seen.defIds,
     winner: res.battle?.winner ?? 'attacker', lostA: res.battle?.dead.attackers.length ?? 0, lostD: res.battle?.dead.defenders.length ?? 0, retreated: !!res.retreated, fled: !!res.battle?.fled, fledTo: res.battle?.fledTo ? [res.battle.fledTo.x, res.battle.fledTo.y] : null,
-    captureNeeded: !!res.captureNeeded, fought: !!res.battle, battle: res.battle ?? null, tile }));
+    captureNeeded: !!res.captureNeeded, fought: !!res.battle, battle: res.battle ?? null, tile, odds: seen.odds }));
   if (battleHook && res.ok && res.battle) { try { battleHook({ result: res, attacker, defender: defOwner, x, y, place: city?.name ?? null, tile }); } catch { /* a listener must never change a fight */ } }
   return res;
 }

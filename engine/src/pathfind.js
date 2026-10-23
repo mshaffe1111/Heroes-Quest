@@ -13,7 +13,9 @@ const D8 = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]
  * Enemy squares block the way unless `through` is set; an enemy square can still be a destination (the last step is an attack).
  * `maxCost` stops the search early (move points). Use routeTo() to read a route out of the result.
  */
-export function routeSearch(g, ids, { through = false, maxCost = Infinity } = {}) {
+// Fog of war, for the computer: `visible` (a Set of tile indexes, fog.visibleSet) makes only enemy armies standing in sight block the way, and
+// `believe` (city -> { owner, razed } or null, fog.knownCity) makes a city hostile only if the realm believes it is. Leave both out to plan on the true map.
+export function routeSearch(g, ids, { through = false, maxCost = Infinity, visible = null, believe = null } = {}) {
   const real = ids.map((id) => g.armies.get(id)); const first = real[0]; const owner = first.owner;
   const canFly = groupCanFly(real);
   const turn = Math.max(1, limitingMovePoints(real.map((a) => ({ ...a, mp: Math.max(a.mp, 1) }))));
@@ -23,8 +25,9 @@ export function routeSearch(g, ids, { through = false, maxCost = Infinity } = {}
   const id = (x, y, af) => (y * W + x) * 2 + af;
   const heap = new Heap(); const s0 = id(first.x, first.y, first.afloat ? 1 : 0); dist[s0] = 0; heap.push(0, s0);
   // who stands where, worked out once per search (armiesAt scans every army, so asking it per square cost squares x armies)
-  const occ = new Set(); for (const a of g.armies.values()) if (a.x != null && a.owner !== owner) occ.add(a.y * W + a.x);
-  const hostile = (x, y) => { const c = cityAt(g, x, y); return (c && c.owner !== owner && !c.razed) || occ.has(y * W + x); };
+  const occ = new Set(); for (const a of g.armies.values()) if (a.x != null && a.owner !== owner && (!visible || visible.has(a.y * W + a.x))) occ.add(a.y * W + a.x);
+  const hostileCity = (c) => { if (!c) return false; if (!believe || c.owner === owner) return c.owner !== owner && !c.razed; const b = believe(c); return !!b && b.owner !== owner && !b.razed; };
+  const hostile = (x, y) => hostileCity(cityAt(g, x, y)) || occ.has(y * W + x);
   // the cost of a square for this group without building arrays per square: the same rules as movement.groupMoveCost
   const rules = g.rules, tc = rules.terrainCost; const bonus = new Set(); for (const a of real) { if (!isHero(a)) for (const l of def(a).moveBonus ?? []) bonus.add(l); else if (hasPerk(a, 'ranger')) { bonus.add('W'); bonus.add('H'); } }
   const costOf = (t, af) => {

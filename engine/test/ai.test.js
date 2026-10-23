@@ -101,3 +101,25 @@ test('a battle listener hears every fight with who attacked whom, and cannot cha
   const plain = play('continent', 5, 12);
   assert.equal(plain.stats.battles.length > 0, true);
 });
+
+// ---- Build E: invasion groups, marching at once, fair routes under fog ------------------------------------------------------------
+test('a new attack group sets out the turn it is formed', () => {
+  const g = E.createGame({ width: 14, height: 3, seed: 3 }); E.addRealm(g, { id: 'A' });
+  E.addCity(g, { id: 'home', x: 0, y: 1, owner: 'A', production: ['linf'] }); E.addCity(g, { id: 'n', x: 9, y: 1, owner: null, production: ['linf'] });
+  for (let i = 0; i < 6; i++) E.addArmy(g, 'hinf', 'A', 0, 1);
+  E.beginTurn(g, 'A'); E.aiPlay(g, 'A');
+  const grp = g.ai.A.groups.find((x) => x.kind === 'attack'); assert.ok(grp, 'an attack group was formed');
+  const a = g.armies.get(grp.ids[0]); assert.ok(a.x > 0, `the group marched off at once (at ${a.x},${a.y})`);
+});
+test('invasion groups: Medium and up pool the spare soldiers of several cities; Easy never does', () => {
+  const rallies = (g) => Object.values(g.ai).reduce((a, x) => a + (x.stats.rallies ?? 0), 0);
+  assert.ok(rallies(playLevels(3, 14, () => 'expert')) >= 1);
+  assert.equal(rallies(playLevels(3, 14, () => 'easy')), 0);
+});
+test('fog: the computer plans routes only around enemy armies it can see', () => {
+  const g = E.createGame({ width: 9, height: 1, seed: 1 }); E.addRealm(g, { id: 'A' }); E.addRealm(g, { id: 'B' });
+  const a = E.addArmy(g, 'hinf', 'A', 0, 0); E.addArmy(g, 'hinf', 'B', 4, 0);
+  assert.equal(E.planRoute(g, [a.id], { x: 8, y: 0 }), null, 'on the true map the enemy blocks the only road');
+  assert.ok(E.planRoute(g, [a.id], { x: 8, y: 0 }, { visible: new Set() }), 'an enemy out of sight does not shape the plan');
+  assert.equal(E.planRoute(g, [a.id], { x: 8, y: 0 }, { visible: new Set([4]) }), null, 'an enemy in sight still blocks');
+});
