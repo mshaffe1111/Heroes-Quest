@@ -6,7 +6,7 @@ import { MapView, loadAssets, realmHex } from './view.js';
 import { h, $, $$, toast, sleep, openModal, frame, closeAllModals, modalOpen, topModal, crest, num, confirmBox, plural, toggleFullscreen, fsButton } from './ui.js';
 import * as D from './dialogs.js';
 import { TP } from './paint.js';
-import { initAudio, sfx, stepSound, setScene } from './audio.js';
+import { initAudio, sfx, stepSound, setScene, setQuiet, quietNow } from './audio.js';
 import * as PB from './playback.js';
 import * as CO from './coach.js';
 
@@ -685,7 +685,17 @@ function sheet(title, groups) {
   const body = groups.flatMap(([head, items]) => [head ? h('div', { class: 'sec' }, head) : null, h('div', { class: 'sheetbtns' }, items.filter((it) => it !== '-').map((it) => h('button', { class: 'btn', onclick: () => { close(); it[1](); } }, it[0].replace('…', ''))))]);
   m = openModal(frame([h('h2', { style: { fontSize: '24px', marginBottom: '6px' } }, title), ...body], { width: 520, onClose: close, cls: 'sheet' }));
 }
-function phoneMenu() { sheet('Menu', PHONE.menus.filter(([t]) => t !== 'Army')); }
+function phoneMenu() { sheet('Menu', PHONE.menus.filter(([t]) => t !== 'Army')); menuMusic(); }
+/** The in-game menu has its own quiet music until every window opened from it is closed. */
+let menuWatch = null;
+function menuMusic() { setQuiet('menu'); clearInterval(menuWatch); menuWatch = setInterval(() => { if (!modalOpen() || !S.g) { clearInterval(menuWatch); menuWatch = null; if (quietNow() === 'menu') setQuiet(null); } }, 400); }
+/** The pause: two minutes without a touch on your own turn and the music eases into the quiet pause pieces; any touch brings the map music back. */
+let lastTouch = Date.now();
+function watchIdle() {
+  const wake = () => { lastTouch = Date.now(); if (quietNow() === 'pause') setQuiet(null); };
+  document.addEventListener('pointerdown', wake, true); document.addEventListener('keydown', wake, true);
+  setInterval(() => { if (S.g && !S.busy && !modalOpen() && !warOver() && document.body.classList.contains('ingame') && !quietNow() && Date.now() - lastTouch > 120000) setQuiet('pause'); }, 5000);
+}
 function phoneMore() {
   const openHere = () => { const c = S.sel && E.cityAt(S.g, S.sel.x, S.sel.y); if (c && c.owner === S.me) D.openCity(c.id); else D.openCities(); };
   sheet('More orders', [['This army', [['Wake up', () => order('wake')], ['Centre on it', () => centreSel()], ['Disband', () => order('disband')], ...(PHONE.mode === 'pp' ? [['Hero', () => nextHero()], ['Open city', () => cityButton()]] : [])]],
@@ -720,4 +730,4 @@ function onKey(e) {
   else if (k === 'delete') order('disband');
   else if (k.startsWith('arrow')) { e.preventDefault(); const d = 90 / S.view.cam.z; if (k === 'arrowleft') S.view.cam.x -= d; if (k === 'arrowright') S.view.cam.x += d; if (k === 'arrowup') S.view.cam.y -= d; if (k === 'arrowdown') S.view.cam.y += d; S.view.clamp(); S.view.dirty = true; }
 }
-export function setup(assets) { initAudio(); document.addEventListener('click', (e) => { const el = e.target.closest?.('button,.btn,.opt,.sw'); if (el && el.id !== 'endbtn') sfx('click'); }, true); S.assets = assets; try { Object.assign(S.opts, JSON.parse(localStorage.getItem('hq-opts') ?? '{}')); } catch {} skeleton(); }
+export function setup(assets) { initAudio(); watchIdle(); document.addEventListener('click', (e) => { const el = e.target.closest?.('button,.btn,.opt,.sw'); if (el && el.id !== 'endbtn') sfx('click'); }, true); S.assets = assets; try { Object.assign(S.opts, JSON.parse(localStorage.getItem('hq-opts') ?? '{}')); } catch {} skeleton(); }

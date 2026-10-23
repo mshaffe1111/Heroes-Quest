@@ -6,6 +6,10 @@ All eight music tracks and the nine event stings are original to Heroes Quest, p
 - **Sonatina Symphonic Orchestra** (Mattias Westlund; SFZ mapping by Peter Eastman): Creative Commons Sampling Plus 1.0. Used for strings, brass, woodwinds, choir, timpani. **Check this licence before any commercial release** (it is an older, retired licence; the orchestra could be swapped for CC0-only sounds if needed).
 - Hall reverb is a synthetic impulse response generated for this project.
 
+## Music made with Stable Audio 3 (October 2026)
+- In-game menu ("War Camp at Night" I and II) and pause ("Quiet Before Dawn" I and II) were generated with **Stable Audio 3 Medium** (Stability AI, via the Hugging Face Space stabilityai/stable-audio-3), then levelled and faded for the game. Stability AI says the model was trained only on licensed music.
+- Licence: **Stability AI Community License**. The output belongs to us and commercial use is free while yearly revenue stays under US $1M; above that an enterprise licence is needed. Prompts and seeds are kept in the project scratch notes.
+
 ## Sound effects
 - Kenney (kenney.nl) RPG Audio and Impact Sounds: CC0.
 - StarNinjas (opengameart.org/users/starninjas), sword attacks, sword clashes, crowd shouting: CC0 (credit appreciated).

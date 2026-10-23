@@ -139,7 +139,7 @@ export function testSound() { sfx('click'); setTimeout(() => sfx('clash', true),
 // Battle is laid over whatever is playing and lifted again afterwards.
 const ONE_SHOT = { title: 'title_ashes_to_crown', victory: 'victory', defeat: 'defeat' };
 const LOOPS = { menu: 'menu', newgame: 'newgame' };
-const TITLES = { title_ashes_to_crown: 'Ashes to Crown', menu: 'Menu theme', newgame: 'New game theme', map1: 'Roads of the Realm', map2: 'Map theme II', battle: 'Battle theme', victory: 'Victory', defeat: 'Defeat' };
+const TITLES = { gmenu_a: 'War Camp at Night I', gmenu_b: 'War Camp at Night II', pause_c: 'Quiet Before Dawn I', pause_d: 'Quiet Before Dawn II', title_ashes_to_crown: 'Ashes to Crown', menu: 'Menu theme', newgame: 'New game theme', map1: 'Roads of the Realm', map2: 'Map theme II', battle: 'Battle theme', victory: 'Victory', defeat: 'Defeat' };
 let scene = null, base = null, over = null, mapIdx = 0, wanted = null, paused = false, nowPlaying = '';
 export const trackTitle = () => nowPlaying;
 
@@ -155,6 +155,7 @@ function fadeOut(tr, s = 1.2, kill = true) {
 }
 function startBase(name, loop, onEnd) { const old = base; base = makeTrack(name, loop, onEnd); if (old) fadeOut(old, 1.4); if (base) { nowPlaying = TITLES[name] ?? name; if (!over && !paused) fadeIn(base, 1.8); } }
 function playScene(s) {
+  if (quiet) { fadeOut(quiet, 1); quiet = null; } quietKind = null;
   if (s === 'title') startBase(ONE_SHOT.title, false, () => setScene('menu'));
   else if (s === 'victory' || s === 'defeat') startBase(ONE_SHOT[s], false, () => setScene('menu'));
   else if (s === 'map') { const next = () => { mapIdx = (mapIdx + 1) % 2; startBase(`map${mapIdx + 1}`, false, next); }; startBase(`map${mapIdx + 1}`, false, next); }
@@ -163,6 +164,21 @@ function playScene(s) {
 /** Choose what music suits the screen. Safe to call before audio is unlocked: it starts on the first tap. */
 export function setScene(s) { wanted = s; if (!unlocked || !ctx) return; if (s === scene && base) return; scene = s; if (!optOn('music')) { scene = s; return; } playScene(s); }
 function scenePending() { if (wanted && optOn('music')) { const s = wanted; scene = null; setScene(s); } }
+// ---- quiet music (Matt 22 Oct): the in-game menu and the idle pause get their own subtle pieces, laid over the map music, which waits
+// paused where it was and comes back when the menu closes or the player returns. Each set takes turns, so the same piece never plays twice running.
+const QUIET = { menu: ['gmenu_a', 'gmenu_b'], pause: ['pause_c', 'pause_d'] }; const qIdx = { menu: 0, pause: 0 };
+let quiet = null, quietKind = null;
+export const quietNow = () => quietKind;
+export function setQuiet(kind) {
+  if (kind === quietKind) return; quietKind = kind; if (!ctx || !unlocked) return;
+  if (quiet) { const q = quiet; quiet = null; fadeOut(q, 1.2); }
+  if (!kind) { if (base && optOn('music') && !paused && !over) { nowPlaying = TITLES[base.name] ?? ''; fadeIn(base, 2); } return; }
+  if (!optOn('music') || over) return;
+  if (base) fadeOut(base, 1.0, false);
+  const play = () => { const old = quiet; const list = QUIET[kind]; const name = list[qIdx[kind]++ % list.length];
+    quiet = makeTrack(name, false, () => { if (quietKind === kind) play(); }); if (old) fadeOut(old, 0.3); if (quiet) { nowPlaying = TITLES[name] ?? name; fadeIn(quiet, 1.8); } };
+  play();
+}
 export function pushBattle() {
   if (!ctx || !unlocked || !optOn('music') || over) return; if (base) { const t = ctx.currentTime; base.g.gain.cancelScheduledValues(t); base.g.gain.setValueAtTime(Math.max(0.0001, base.g.gain.value), t); base.g.gain.linearRampToValueAtTime(0.0001, t + 1.0); const b = base; setTimeout(() => { if (over) b.el.pause(); }, 1100); }
   over = makeTrack('battle', true); if (over) { nowPlaying = TITLES.battle; fadeIn(over, 1.2); }
