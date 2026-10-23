@@ -10,13 +10,13 @@
 // armies or rules: every realm plays by the same rules at every rung.
 export const RUNGS = ['clumsy', 'weak', 'normal', 'good', 'sharp'];
 export const RUNG_NAMES = { clumsy: 'Clumsy', weak: 'Weak', normal: 'Normal', good: 'Good', sharp: 'Sharp' };
-/** How each rung plays: an AI level plus a skill nudge (see ai.js applySkill). */
+/** How each rung plays: an AI level, a skill nudge (see ai.js applySkill), and `extra`: skills only that rung has (ai.js AI, the Sharp skills). */
 export const RUNG_PLAY = {
   clumsy: { level: 'easy', skill: -0.4 },
-  weak: { level: 'medium', skill: -0.7 },
+  weak: { level: 'medium', skill: -0.7, extra: { poolCities: 1 } },      // tested 23 Oct: Normal's judgement worn down, and never pools several cities into one invasion
   normal: { level: 'medium', skill: 0 },
   good: { level: 'hard', skill: 0 },
-  sharp: { level: 'expert', skill: 0.4 },
+  sharp: { level: 'expert', skill: 0.4, extra: { freeFirst: 1.2, blessDetour: 10, towers: true } },      // tested 23 Oct: takes free cities first, blesses its armies at temples, learns at Mage Towers
 };
 const BAND = { easy: [0, 2], medium: [1, 3], hard: [2, 4], expert: [3, 4] };
 
@@ -67,7 +67,7 @@ export function setupRivals(g, humanId, level = 'medium') {
   const out = [];
   for (const id of ids) {
     const rung = RUNGS[pick.get(id)]; const play = RUNG_PLAY[rung]; const r = g.realms.get(id);
-    r.rung = rung; r.difficulty = play.level; r.skill = play.skill; r.habit = HABIT_KEYS[Math.floor(g.rng.next() * HABIT_KEYS.length)];
+    r.rung = rung; r.difficulty = play.level; r.skill = play.skill; r.aiExtra = play.extra ?? null; r.habit = HABIT_KEYS[Math.floor(g.rng.next() * HABIT_KEYS.length)];
     out.push({ id, rung, habit: r.habit });
   }
   return out.sort((a, b) => RUNGS.indexOf(a.rung) - RUNGS.indexOf(b.rung));

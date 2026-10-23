@@ -5,10 +5,10 @@ import { armiesAt, cityAt, tileAt, moveGroup, attack, resolveCapture, embark, di
 import { exactOdds } from './advisor.js';
 import { defaultOrder } from './stack.js';
 import { routeSearch, routeTo } from './pathfind.js';
-import { exploreRuin, visitTemple, studyLibrary, siteAt, ruinWinChance, resolveSage } from './sites.js';
+import { exploreRuin, visitTemple, studyLibrary, siteAt, ruinWinChance, resolveSage, towerOffer, learnAtTower } from './sites.js';
 import { acceptQuest, declineQuest } from './quests.js';
 import { isHero, def, moveOf, maxPips } from './units.js';
-import { aiChoosePerk } from './perks.js';
+import { aiChoosePerk, TEMPERAMENTS } from './perks.js';
 import { buyDoctrine, doctrinePrice, hasDoctrine } from './doctrines.js';
 import { fogOn, visibleSet, knownCity, tileIndex, isExplored as isExp } from './fog.js';
 import { createArmy } from './units.js';
@@ -53,6 +53,10 @@ export const AI = {
   musters: 1,             // new invasion forces a realm starts gathering in one turn
   huntReach: 0,           // extra squares of reach when gathering a force against a human player's city
   humanOdds: 0,           // how much lower the odds may be when the target is a human player's city (Hard and Expert press harder on you)
+  // Sharp skills (Matt 23 Oct: "only smarter"): real decisions, no bonuses. All off unless a rung turns them on.
+  blessDetour: 0,         // attack groups first visit a temple that has not yet blessed them (+1 strength each, for good) if it adds at most this many squares
+  towers: false,          // heroes learn an ability at a Mage Tower when the realm can spare the gold
+  freeFirst: 0,           // extra worth of a free (Unsworn) city in the first 40 turns: cheap to take, and it pays every turn after
 };
 
 // Four levels. They change judgement and temperament only, never income, armies or the rules (manual 3e): each realm plays with the same
@@ -172,6 +176,7 @@ function cityWorth(g, realmId, city) {
   const k = cfgOf(g, realmId); const st = state(g, realmId);
   const owner = fogOn(g) ? (believe(g, realmId, city)?.owner ?? null) : city.owner;
   let v = (city.income + (owner ? 14 : 6)) / 12 + (city.production.length >= 3 ? 0.5 : 0);
+  if (!owner && k.freeFirst && g.turn <= 40) v *= 1 + k.freeFirst;
   if (owner) {
     if (g.realms.get(owner)?.human) v *= 1 + k.focusHuman;
     if (owner === st.leader) v *= 1 + k.hateLeader;
@@ -230,6 +235,7 @@ function runAttack(g, realmId, grp, given = null) {
   if (city.razed) { const ids = aliveIds(g, realmId, grp.ids); const a = ids.length && g.armies.get(ids[0]); if (a && cheb(a, city) <= 1) return 'retarget'; }   // arrived at a ruin
   const ids = aliveIds(g, realmId, grp.ids); if (!ids.length) return 'dead';
   const k = cfgOf(g, realmId);
+  if (k.blessDetour > 0) { const b = blessStop(g, realmId, grp, ids, city, k); if (b) return b; }
   const route = given ?? routeTo(routeSearch(g, ids, { maxCost: k.travelTurns * 2 * turnOf(g, ids), ...seenOpts(g, realmId) }), city); if (!route) { st.stats.noRoute++; return 'retarget'; }
   const res = walk(g, realmId, grp, route);
   if (res.what === 'blocked') { grp.stuck = (grp.stuck ?? 0) + 1; if (grp.stuck > 3) return 'retarget'; }
@@ -256,6 +262,37 @@ function runAttack(g, realmId, grp, given = null) {
     if (grp.wait > k.patience) { st.stats.retreats++; return 'retreat'; } return 'wait';
   }
   return 'moving';
+}
+
+/**
+ * Sharp skill: on the way to a target, call at a temple that has not blessed these armies yet (+1 strength each, kept for good), when the detour is
+ * small. Returns 'moving' while it is on that errand (or has just been blessed and stops for the turn), null when there is nothing worth the detour.
+ */
+function blessStop(g, realmId, grp, ids, city, k) {
+  const st = state(g, realmId); const a0 = g.armies.get(ids[0]);
+  if (grp.via) {
+    const site = siteAt(g, grp.via.x, grp.via.y);
+    if (!site || site.kind !== 'temple') { grp.via = null; return null; }
+    if (a0.x === grp.via.x && a0.y === grp.via.y) { const r = visitTemple(g, ids); grp.via = null; grp.blessed = true; st.stats.blessings = (st.stats.blessings ?? 0) + (r.blessed ?? 0);
+      emit(() => ({ t: 'site', realm: realmId, kind: 'temple', at: [site.x, site.y], blessed: r.blessed ?? 0 })); return null; }
+    const route = routeTo(routeSearch(g, ids, { maxCost: 400, ...seenOpts(g, realmId) }), grp.via); if (!route) { grp.via = null; grp.blessed = true; return null; }
+    const res = walk(g, realmId, grp, route); if (res.what === 'dead') return 'dead';
+    const b = g.armies.get(aliveIds(g, realmId, grp.ids)[0]); if (b && b.x === grp.via.x && b.y === grp.via.y) { const r = visitTemple(g, aliveIds(g, realmId, grp.ids)); grp.via = null; grp.blessed = true; st.stats.blessings = (st.stats.blessings ?? 0) + (r.blessed ?? 0); }
+    return 'moving';
+  }
+  if (grp.blessed) return null;
+  grp.blessed = true;      // look once per group
+  const direct = cheb(a0, city); let best = null;
+  for (const s of g.sites.values()) {
+    if (s.kind !== 'temple' || (fogOn(g) && !isExp(g, realmId, s.x, s.y))) continue;
+    const fresh = ids.filter((id) => !s.blessed.includes(id)).length; if (fresh < Math.max(2, ids.length / 2)) continue;
+    const extra = cheb(a0, s) + cheb(s, city) - direct; if (extra > k.blessDetour) continue;
+    if (armiesAt(g, s.x, s.y).some((q) => q.owner !== realmId)) continue;
+    if (!best || extra < best.extra) best = { s, extra };
+  }
+  if (!best) return null;
+  grp.via = { x: best.s.x, y: best.s.y }; st.stats.detours = (st.stats.detours ?? 0) + 1;
+  return blessStop(g, realmId, grp, ids, city, k);
 }
 
 /** Room in this city for n more armies (a city holds rules.cityGarrisonLimit, 8). */
@@ -291,6 +328,12 @@ function runExplore(g, realmId, grp) {
   const live = aliveIds(g, realmId, grp.ids);
   if (site.kind === 'temple') { const r = visitTemple(g, live); emit(() => ({ t: 'site', realm, kind: 'temple', at: [site.x, site.y], blessed: r.blessed ?? 0 })); }
   else if (site.kind === 'library') { studyLibrary(g, live); emit(() => ({ t: 'site', realm, kind: 'library', at: [site.x, site.y] })); }
+  else if (site.kind === 'tower') {
+    const o = towerOffer(g, live);
+    if (o.ok && g.realms.get(realmId).gold >= o.cost + 150) { const hero = g.armies.get(o.heroId); const fav = TEMPERAMENTS[hero.temperament]?.favours ?? [];
+      const pick = [...o.offer].sort((x, y) => (fav.includes(y) ? 10 - fav.indexOf(y) : 0) - (fav.includes(x) ? 10 - fav.indexOf(x) : 0))[0];
+      const r = learnAtTower(g, live, pick); if (r.ok) { const st = state(g, realmId); st.stats.towers = (st.stats.towers ?? 0) + 1; emit(() => ({ t: 'site', realm, kind: 'tower', at: [site.x, site.y], perk: pick })); } }
+  }
   else if (site.kind === 'ruin') {
     const r = exploreRuin(g, live);
     if (r.outcome === 'sage') resolveSage(g, 0);
@@ -456,11 +499,12 @@ function formExplorers(g, realmId) {
     for (const s of g.sites.values()) {
       if (taken.has(key(s.x, s.y))) continue;
       if (fogOn(g) && !isExp(g, realmId, s.x, s.y)) continue;      // a site it has not found yet
-      if (s.kind === 'ruin' && s.explored) continue; if (s.kind === 'tower') continue;
+      if (s.kind === 'ruin' && s.explored) continue;
+      if (s.kind === 'tower' && (!k.towers || (s.taught ?? []).includes(hero.id) || g.realms.get(realmId).gold < (g.rules.towerCost ?? 200) + 250)) continue;
       if (s.kind === 'temple' && s.blessed.includes(hero.id)) continue; if (s.kind === 'library' && s.studied.includes(hero.id)) continue;
       const r = routeTo(search, s); if (!r) continue;
       if (s.kind === 'ruin' && ruinWinChance(hero, s.guardian ?? 'wiz', crew.length - 1, g.rules) < k.ruinOdds) continue;
-      const w = (s.kind === 'temple' ? 1.4 : s.kind === 'ruin' ? 1.0 : 0.6) / (1 + r.cost / 30);
+      const w = (s.kind === 'temple' ? 1.4 : s.kind === 'tower' ? 1.6 : s.kind === 'ruin' ? 1.0 : 0.6) / (1 + r.cost / 30);
       if (!best || w > best.w) best = { w, s };
     }
     if (best) { st.stats.explored++; const grp = { id: st.nextId++, kind: 'explore', ids, x: best.s.x, y: best.s.y }; st.groups.push(grp); ids.forEach((id) => busy.add(id)); taken.add(key(best.s.x, best.s.y)); runOne(g, realmId, grp); }
@@ -553,7 +597,7 @@ export function chooseDoctrine(g, realmId, k = AI) {
 }
 export function aiPlay(g, realmId) {
   const realm = g.realms.get(realmId); const st = state(g, realmId);
-  st.cfg = applyHabit(applySkill({ ...AI, ...(DIFFICULTY[realm.difficulty ?? 'medium'] ?? {}) }, realm.skill ?? 0), realm.habit);      // rung (level + skill), then habit (rivals.js)
+  st.cfg = { ...applyHabit(applySkill({ ...AI, ...(DIFFICULTY[realm.difficulty ?? 'medium'] ?? {}) }, realm.skill ?? 0), realm.habit), ...(realm.aiExtra ?? {}) };      // rung (level + skill), habit (rivals.js), then the rung's own skills
   st.leader = leaderOf(g, realmId);
   trackGrudges(g, realmId, st);
   for (const a of g.armies.values()) if (a.owner === realmId && isHero(a) && a.perkPoints > 0) aiChoosePerk(g, a.id);
